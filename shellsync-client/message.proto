@@ -1,0 +1,13 @@
+syntax = "proto3"
+
+package shellsync-client;
+
+message Message {
+      string body = 1 ;
+}
+
+services ShellSync {
+    rpc SendMessage (Message) returns (Message);
+    rpc ReceiveMessage (Message) returns (Message);
+}
+
