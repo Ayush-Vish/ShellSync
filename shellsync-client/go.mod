@@ -6,6 +6,7 @@ toolchain go1.23.8
 
 require (
 	github.com/golang/protobuf v1.5.4 // indirect
+	github.com/kevinburke/ssh_config v1.2.0
 	golang.org/x/net v0.35.0 // indirect
 	golang.org/x/sys v0.30.0 // indirect
 	golang.org/x/text v0.22.0 // indirect
