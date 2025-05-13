@@ -1,4 +1,4 @@
-module github.com/ayush-vish/ShellSync/shellsync-core
+module github.com/ayush-vish/ShellSync/shellsync_core
 
 go 1.23.0
 

@@ -113,13 +113,13 @@ var File_proto_shellsync_proto protoreflect.FileDescriptor
 
 const file_proto_shellsync_proto_rawDesc = "" +
 	"\n" +
-	"\x15proto/shellsync.proto\x12\x05hello\"(\n" +
+	"\x15proto/shellsync.proto\x12\x0eshellsync_core\"(\n" +
 	"\fHelloRequest\x12\x18\n" +
 	"\amessage\x18\x01 \x01(\tR\amessage\"%\n" +
 	"\rHelloResponse\x12\x14\n" +
-	"\x05reply\x18\x01 \x01(\tR\x05reply2E\n" +
-	"\fHelloService\x125\n" +
-	"\bSayHello\x12\x13.hello.HelloRequest\x1a\x14.hello.HelloResponseB\tZ\a./protob\x06proto3"
+	"\x05reply\x18\x01 \x01(\tR\x05reply2W\n" +
+	"\fHelloService\x12G\n" +
+	"\bSayHello\x12\x1c.shellsync_core.HelloRequest\x1a\x1d.shellsync_core.HelloResponseB9Z7github.com/ayush-vish/ShellSync/shellsync_core/pb/protob\x06proto3"
 
 var (
 	file_proto_shellsync_proto_rawDescOnce sync.Once
@@ -135,12 +135,12 @@ func file_proto_shellsync_proto_rawDescGZIP() []byte {
 
 var file_proto_shellsync_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
 var file_proto_shellsync_proto_goTypes = []any{
-	(*HelloRequest)(nil),  // 0: hello.HelloRequest
-	(*HelloResponse)(nil), // 1: hello.HelloResponse
+	(*HelloRequest)(nil),  // 0: shellsync_core.HelloRequest
+	(*HelloResponse)(nil), // 1: shellsync_core.HelloResponse
 }
 var file_proto_shellsync_proto_depIdxs = []int32{
-	0, // 0: hello.HelloService.SayHello:input_type -> hello.HelloRequest
-	1, // 1: hello.HelloService.SayHello:output_type -> hello.HelloResponse
+	0, // 0: shellsync_core.HelloService.SayHello:input_type -> shellsync_core.HelloRequest
+	1, // 1: shellsync_core.HelloService.SayHello:output_type -> shellsync_core.HelloResponse
 	1, // [1:2] is the sub-list for method output_type
 	0, // [0:1] is the sub-list for method input_type
 	0, // [0:0] is the sub-list for extension type_name

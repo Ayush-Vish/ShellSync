@@ -1,8 +1,8 @@
 syntax = "proto3";
 
-option go_package = "./proto";
+option go_package = "github.com/ayush-Vish/shellSync/shellsync_core/pb/proto";
 
-package hello;
+package shellsync_core;
 
 service HelloService {
   rpc SayHello (HelloRequest) returns (HelloResponse);

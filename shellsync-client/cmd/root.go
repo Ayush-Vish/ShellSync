@@ -18,6 +18,7 @@ var rootCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		myFigure := figure.NewFigure("ShellSync", "doom", true)
 		myFigure.Print()
+		
 	},
 }
 
