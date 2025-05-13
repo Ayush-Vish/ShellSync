@@ -1,10 +1,9 @@
 package main
 
 import (
-	"github.com/Ayush-Vish/ShellSync/shellsync-client/cmd"
+	cmd "github.com/Ayush-Vish/shellsync/client/cmd/root"
 )
 
 func main() {
-
 	cmd.Execute()
 }

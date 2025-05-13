@@ -6,6 +6,7 @@ import (
 
 	"github.com/common-nighthawk/go-figure"
 	"github.com/spf13/cobra"
+	server "github.com/Ayush-Vish/shellsync/client/server"
 )
 
 var host string
@@ -18,7 +19,7 @@ var rootCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		myFigure := figure.NewFigure("ShellSync", "doom", true)
 		myFigure.Print()
-		
+		server.Start()
 	},
 }
 
