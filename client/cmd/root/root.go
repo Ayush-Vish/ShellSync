@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"os"
 
+	controller "github.com/Ayush-Vish/shellsync/client/controller"
 	"github.com/common-nighthawk/go-figure"
 	"github.com/spf13/cobra"
-	server "github.com/Ayush-Vish/shellsync/client/server"
 )
 
 var host string
@@ -19,13 +19,13 @@ var rootCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		myFigure := figure.NewFigure("ShellSync", "doom", true)
 		myFigure.Print()
-		server.Start()
+		controller.Start(host, port)
 	},
 }
 
 func init() {
 	rootCmd.PersistentFlags().StringVar(&host, "host", "localhost", "Host to connect to")
-	rootCmd.PersistentFlags().IntVar(&port, "port", 2222, "Port to connect to")
+	rootCmd.PersistentFlags().IntVar(&port, "port", 5000, "Port to connect to")
 
 }
 

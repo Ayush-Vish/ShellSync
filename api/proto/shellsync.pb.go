@@ -21,26 +21,28 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-type HelloWorldRequest struct {
+type CreateRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
+	Host          string                 `protobuf:"bytes,1,opt,name=host,proto3" json:"host,omitempty"`
+	ClientId      string                 `protobuf:"bytes,2,opt,name=client_id,json=clientId,proto3" json:"client_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *HelloWorldRequest) Reset() {
-	*x = HelloWorldRequest{}
+func (x *CreateRequest) Reset() {
+	*x = CreateRequest{}
 	mi := &file_api_proto_shellsync_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *HelloWorldRequest) String() string {
+func (x *CreateRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*HelloWorldRequest) ProtoMessage() {}
+func (*CreateRequest) ProtoMessage() {}
 
-func (x *HelloWorldRequest) ProtoReflect() protoreflect.Message {
+func (x *CreateRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_api_proto_shellsync_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -52,32 +54,47 @@ func (x *HelloWorldRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use HelloWorldRequest.ProtoReflect.Descriptor instead.
-func (*HelloWorldRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use CreateRequest.ProtoReflect.Descriptor instead.
+func (*CreateRequest) Descriptor() ([]byte, []int) {
 	return file_api_proto_shellsync_proto_rawDescGZIP(), []int{0}
 }
 
-type HelloWorldResponse struct {
+func (x *CreateRequest) GetHost() string {
+	if x != nil {
+		return x.Host
+	}
+	return ""
+}
+
+func (x *CreateRequest) GetClientId() string {
+	if x != nil {
+		return x.ClientId
+	}
+	return ""
+}
+
+type CreateResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Message       string                 `protobuf:"bytes,1,opt,name=message,proto3" json:"message,omitempty"`
+	SessionId     string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	FrontendUrl   string                 `protobuf:"bytes,2,opt,name=frontend_url,json=frontendUrl,proto3" json:"frontend_url,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *HelloWorldResponse) Reset() {
-	*x = HelloWorldResponse{}
+func (x *CreateResponse) Reset() {
+	*x = CreateResponse{}
 	mi := &file_api_proto_shellsync_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *HelloWorldResponse) String() string {
+func (x *CreateResponse) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*HelloWorldResponse) ProtoMessage() {}
+func (*CreateResponse) ProtoMessage() {}
 
-func (x *HelloWorldResponse) ProtoReflect() protoreflect.Message {
+func (x *CreateResponse) ProtoReflect() protoreflect.Message {
 	mi := &file_api_proto_shellsync_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -89,14 +106,21 @@ func (x *HelloWorldResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use HelloWorldResponse.ProtoReflect.Descriptor instead.
-func (*HelloWorldResponse) Descriptor() ([]byte, []int) {
+// Deprecated: Use CreateResponse.ProtoReflect.Descriptor instead.
+func (*CreateResponse) Descriptor() ([]byte, []int) {
 	return file_api_proto_shellsync_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *HelloWorldResponse) GetMessage() string {
+func (x *CreateResponse) GetSessionId() string {
 	if x != nil {
-		return x.Message
+		return x.SessionId
+	}
+	return ""
+}
+
+func (x *CreateResponse) GetFrontendUrl() string {
+	if x != nil {
+		return x.FrontendUrl
 	}
 	return ""
 }
@@ -105,13 +129,16 @@ var File_api_proto_shellsync_proto protoreflect.FileDescriptor
 
 const file_api_proto_shellsync_proto_rawDesc = "" +
 	"\n" +
-	"\x19api/proto/shellsync.proto\x12\n" +
-	"helloworld\"\x13\n" +
-	"\x11HelloWorldRequest\".\n" +
-	"\x12HelloWorldResponse\x12\x18\n" +
-	"\amessage\x18\x01 \x01(\tR\amessage2`\n" +
-	"\x11HelloWorldService\x12K\n" +
-	"\bSayHello\x12\x1d.helloworld.HelloWorldRequest\x1a\x1e.helloworld.HelloWorldResponse\"\x00B+Z)github.com/Ayush-Vish/shellsync/api/protob\x06proto3"
+	"\x19api/proto/shellsync.proto\x12\tshellsync\"@\n" +
+	"\rCreateRequest\x12\x12\n" +
+	"\x04host\x18\x01 \x01(\tR\x04host\x12\x1b\n" +
+	"\tclient_id\x18\x02 \x01(\tR\bclientId\"R\n" +
+	"\x0eCreateResponse\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x01 \x01(\tR\tsessionId\x12!\n" +
+	"\ffrontend_url\x18\x02 \x01(\tR\vfrontendUrl2Q\n" +
+	"\tShellSync\x12D\n" +
+	"\rCreateSession\x12\x18.shellsync.CreateRequest\x1a\x19.shellsync.CreateResponseB+Z)github.com/Ayush-Vish/shellsync/api/protob\x06proto3"
 
 var (
 	file_api_proto_shellsync_proto_rawDescOnce sync.Once
@@ -127,12 +154,12 @@ func file_api_proto_shellsync_proto_rawDescGZIP() []byte {
 
 var file_api_proto_shellsync_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
 var file_api_proto_shellsync_proto_goTypes = []any{
-	(*HelloWorldRequest)(nil),  // 0: helloworld.HelloWorldRequest
-	(*HelloWorldResponse)(nil), // 1: helloworld.HelloWorldResponse
+	(*CreateRequest)(nil),  // 0: shellsync.CreateRequest
+	(*CreateResponse)(nil), // 1: shellsync.CreateResponse
 }
 var file_api_proto_shellsync_proto_depIdxs = []int32{
-	0, // 0: helloworld.HelloWorldService.SayHello:input_type -> helloworld.HelloWorldRequest
-	1, // 1: helloworld.HelloWorldService.SayHello:output_type -> helloworld.HelloWorldResponse
+	0, // 0: shellsync.ShellSync.CreateSession:input_type -> shellsync.CreateRequest
+	1, // 1: shellsync.ShellSync.CreateSession:output_type -> shellsync.CreateResponse
 	1, // [1:2] is the sub-list for method output_type
 	0, // [0:1] is the sub-list for method input_type
 	0, // [0:0] is the sub-list for extension type_name

@@ -3,7 +3,7 @@ GO_OUT=.
 WEB_OUT=frontend/src/lib/proto
 
 proto:
-	
+
 	protoc \
 	  --go_out=$(GO_OUT) --go_opt=paths=source_relative \
 	  --go-grpc_out=$(GO_OUT) --go-grpc_opt=paths=source_relative \

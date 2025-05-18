@@ -2,14 +2,26 @@ syntax = "proto3";
 
 option go_package = "github.com/Ayush-Vish/shellsync/api/proto";
 
-package helloworld;
+package shellsync;
 
-service HelloWorldService {
-  rpc SayHello(HelloWorldRequest) returns (HelloWorldResponse) {}
+service ShellSync {
+  
+  // Creates a new SSH Session for a given host
+  rpc CreateSession(CreateRequest) returns (CreateResponse);
+
+  // Stream real time commands and op of the terminal
+  // rpc Stream(stream ClientUpdate) returns (stream ServerUpdate);
+
+  // Kills a Existing SSH Session. 
+  // rpc KillSession(KillRequest) returns (KillResponse);
+
+}
+message CreateRequest {
+  string host = 1;
+  string client_id = 2;  
 }
 
-message HelloWorldRequest {}
-
-message HelloWorldResponse {
-  string message = 1;
+message CreateResponse {
+  string session_id = 1;
+  string frontend_url = 2;
 }
