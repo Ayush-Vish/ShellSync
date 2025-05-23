@@ -1,127 +1,115 @@
-'use client'
+'use client';
 
-import { useEffect, useRef } from 'react'
-import { Terminal } from '@xterm/xterm'
-import { FitAddon } from '@xterm/addon-fit'
-import { WebLinksAddon } from '@xterm/addon-web-links'
-import '@xterm/xterm/css/xterm.css'
+import { useEffect, useRef, useState } from 'react';
+import { Terminal as XTerminal } from 'xterm';
+import { FitAddon } from 'xterm-addon-fit';
 import 'xterm/css/xterm.css';
 
-
-interface TerminalProps {
-  onData: (data: string) => void
-  onBinary?: (data: string) => void
-  className?: string
-  initialMessage?: string
-}
-
-export default function XTerm({ 
-  onData, 
-  onBinary, 
-  className = "h-full w-full", 
-  initialMessage = 'Welcome to the terminal!\r\n' 
-}: TerminalProps) {
-  const terminalRef = useRef<HTMLDivElement>(null)
-  const terminalInstance = useRef<Terminal | null>(null)
-  const fitAddon = useRef<FitAddon | null>(null)
-
-  // Expose the terminal instance through a ref
-  const getTerminal = () => terminalInstance.current
-
-  // Method to write to the terminal
-  const writeToTerminal = (data: string) => {
-    if (terminalInstance.current) {
-      terminalInstance.current.write(data)
-    }
-  }
+const Xterm = () => {
+  const terminalRef = useRef<HTMLDivElement>(null);
+  const [terminal, setTerminal] = useState<XTerminal | null>(null);
+  const fitAddonRef = useRef<FitAddon | null>(null);
 
   useEffect(() => {
-    if (!terminalRef.current) return
-
-    // Initialize terminal
-    const term =  new Terminal({
+    // Initialize terminal only on client side
+    if (!terminalRef.current) return;
+    
+    // Create terminal instance
+    const term = new XTerminal({
       cursorBlink: true,
-      fontSize: 14,
-      fontFamily: 'Menlo, Monaco, "Courier New", monospace',
       theme: {
         background: '#1e1e1e',
         foreground: '#ffffff',
-        cursor: '#ffffff',
-        black: '#000000',
-        red: '#cd3131',
-        green: '#0dbc79',
-        yellow: '#e5e510',
-        blue: '#2472c8',
-        magenta: '#bc3fbc',
-        cyan: '#11a8cd',
-        white: '#e5e5e5',
-        brightBlack: '#666666',
-        brightRed: '#f14c4c',
-        brightGreen: '#23d18b',
-        brightYellow: '#f5f543',
-        brightBlue: '#3b8eea',
-        brightMagenta: '#d670d6',
-        brightCyan: '#29b8db',
-        brightWhite: '#ffffff'
-      }
+      },
+      fontFamily: 'monospace',
+      fontSize: 14,
     });
 
-
-    // Setup addons
-    fitAddon.current = new FitAddon()
-    term.loadAddon(fitAddon.current)
-    term.loadAddon(new WebLinksAddon())
-
-    // Attach to DOM
-    term.open(terminalRef.current)
-    fitAddon.current.fit()
+    // Create fit addon to make terminal resize to container
+    const fitAddon = new FitAddon();
+    term.loadAddon(fitAddon);
+    fitAddonRef.current = fitAddon;
     
-    // Write initial message if provided
-    if (initialMessage) {
-      term.write(initialMessage)
-    }
-
-    // Event handlers
-    term.onData((data) => {
-      // Echo the command locally for immediate feedback
-      // For control characters and special keys, we'll let the server handle them
-      if (data.charCodeAt(0) >= 32 || data === '\r') {
-        // Local echo for visible characters and Enter
-        term.write(data)
-      }
+    // Open terminal in the container element
+    term.open(terminalRef.current);
+    fitAddon.fit();
+    
+    // Set welcome message
+    term.writeln('Welcome to the Terminal!');
+    term.writeln('Type something and press Enter...');
+    term.writeln('');
+    
+    // Current line buffer
+    let currentLine = '';
+    
+    // Handle user input
+    term.onKey(({ key, domEvent }) => {
+      const printable = !domEvent.altKey && !domEvent.ctrlKey && !domEvent.metaKey;
       
-      onData(data)
-    })
+      // Handle Enter key
+      if (domEvent.key === 'Enter') {
+        term.writeln('');
+        // Process command (just echo it back for this minimal example)
+        term.writeln(`You typed: ${currentLine}`);
+        currentLine = '';
+        term.write('$ ');
+      }
+      // Handle Backspace key
+      else if (domEvent.key === 'Backspace') {
+        if (currentLine.length > 0) {
+          currentLine = currentLine.slice(0, -1);
+          term.write('\b \b');
+        }
+      }
+      // Handle printable characters
+      else if (printable) {
+        currentLine += key;
+        term.write(key);
+      }
+    });
     
-    if (onBinary) {
-      term.onBinary(onBinary)
-    }
-
-    terminalInstance.current = term
-
+    // Start with a prompt
+    term.write('$ ');
+    
+    // Set the terminal in state
+    setTerminal(term);
+    
     // Handle window resize
     const handleResize = () => {
-      if (fitAddon.current) {
-        fitAddon.current.fit()
-      }
-    }
-
-    window.addEventListener('resize', handleResize)
-
+      fitAddon.fit();
+    };
+    
+    window.addEventListener('resize', handleResize);
+    
     // Cleanup
     return () => {
-      window.removeEventListener('resize', handleResize)
-      term.dispose()
-    }
-  }, [onData, onBinary, initialMessage])
+      term.dispose();
+      window.removeEventListener('resize', handleResize);
+    };
+  }, []);
 
-  // Expose terminal methods
-  useEffect(() => {
-    // This trick allows the parent component to get access to terminal methods
-    if (terminalInstance.current) {
-      // You could use a ref callback here to expose methods to parent component if needed
-    }
-  }, [])
+  return (
+    <div className="terminal-container">
+      <div 
+        ref={terminalRef} 
+        className="terminal" 
+      />
+      <style jsx>{`
+        .terminal-container {
+          height: 400px;
+          width: 100%;
+          border-radius: 6px;
+          padding: 8px;
+          background-color: #1e1e1e;
+          overflow: hidden;
+        }
+        .terminal {
+          height: 100%;
+          width: 100%;
+        }
+      `}</style>
+    </div>
+  );
+};
 
-  return <div ref={terminalRef} className={className} />
-}
+export default Xterm;

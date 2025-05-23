@@ -18,7 +18,6 @@ service ShellSync {
 }
 message CreateRequest {
   string host = 1;
-  string client_id = 2;  
 }
 
 message CreateResponse {

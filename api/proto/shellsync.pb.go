@@ -24,7 +24,6 @@ const (
 type CreateRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Host          string                 `protobuf:"bytes,1,opt,name=host,proto3" json:"host,omitempty"`
-	ClientId      string                 `protobuf:"bytes,2,opt,name=client_id,json=clientId,proto3" json:"client_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -62,13 +61,6 @@ func (*CreateRequest) Descriptor() ([]byte, []int) {
 func (x *CreateRequest) GetHost() string {
 	if x != nil {
 		return x.Host
-	}
-	return ""
-}
-
-func (x *CreateRequest) GetClientId() string {
-	if x != nil {
-		return x.ClientId
 	}
 	return ""
 }
@@ -129,10 +121,9 @@ var File_api_proto_shellsync_proto protoreflect.FileDescriptor
 
 const file_api_proto_shellsync_proto_rawDesc = "" +
 	"\n" +
-	"\x19api/proto/shellsync.proto\x12\tshellsync\"@\n" +
+	"\x19api/proto/shellsync.proto\x12\tshellsync\"#\n" +
 	"\rCreateRequest\x12\x12\n" +
-	"\x04host\x18\x01 \x01(\tR\x04host\x12\x1b\n" +
-	"\tclient_id\x18\x02 \x01(\tR\bclientId\"R\n" +
+	"\x04host\x18\x01 \x01(\tR\x04host\"R\n" +
 	"\x0eCreateResponse\x12\x1d\n" +
 	"\n" +
 	"session_id\x18\x01 \x01(\tR\tsessionId\x12!\n" +

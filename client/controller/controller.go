@@ -1,15 +1,16 @@
-package server
+package controller
 
 import (
 	"context"
 	"fmt"
-	"log"
-	"strconv"
-	"time"
-
 	pb "github.com/Ayush-Vish/shellsync/api/proto"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"log"
+	"os"
+	"os/user"
+	"strconv"
+	"strings"
 )
 
 func Start(host string, port int) {
@@ -25,20 +26,37 @@ func Start(host string, port int) {
 	defer conn.Close()
 
 	client := pb.NewShellSyncClient(conn)
+	var name string
+	username, err := user.Current()
+	if err != nil {
+		log.Fatal(err)
+		return
+	}
+
+	hostname, err := os.Hostname()
+	if err == nil {
+		host := strings.SplitN(hostname, ".", 2)[0]
+		name = username.Username + "@" + host
+	} else {
+		name = username.Username
+	}
 
 	// Create new session
 	resp, err := client.CreateSession(context.Background(), &pb.CreateRequest{
-		Host:     "localhost",
-		ClientId: generateClientID(),
+		Host: name,
 	})
 	if err != nil {
 		log.Fatalf("Session creation failed: %v", err)
 	}
+	if err := Terminal(); err != nil {
+		log.Fatalf(err.Error())
+	}
+	if err != nil {
+		log.Fatal(err)
+	}
+	//fmt.Print(op)
 
 	fmt.Printf("\nSession created! Share this URL:\n\n")
 	fmt.Printf("  ► %s ◄\n\n", resp.FrontendUrl)
 
-}
-func generateClientID() string {
-	return fmt.Sprintf("client-%d", time.Now().UnixNano())
 }

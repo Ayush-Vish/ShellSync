@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"log"
 	"net"
 	"net/http"
@@ -12,7 +13,6 @@ import (
 
 	pb "github.com/Ayush-Vish/shellsync/api/proto"
 	"github.com/Ayush-Vish/shellsync/backend/internal/service"
-	"github.com/Ayush-Vish/shellsync/backend/internal/websocket"
 	"github.com/gorilla/mux"
 	"google.golang.org/grpc"
 )
@@ -20,10 +20,10 @@ import (
 func main() {
 	// Initialize services
 	shellService := service.NewShellSyncService()
-	wsHub := websocket.NewHub(shellService)
+	//wsHub := websocket.NewHub(shellService)
 
 	// Start WebSocket hub
-	go wsHub.Run()
+	//go wsHub.Run()
 
 	// Setup gRPC server
 	grpcServer := grpc.NewServer()
@@ -45,8 +45,16 @@ func main() {
 	r.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("This is a test message"))
 	})
-	r.HandleFunc("/ws", wsHub.HandleWebSocket)
+	//r.HandleFunc("/ws", wsHub.HandleWebSocket)
+	r.HandleFunc("/s", func(w http.ResponseWriter, r *http.Request) {
+		sessions := shellService.GetSessions()
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(sessions); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 
+	})
 	httpServer := &http.Server{
 		Addr:    ":8080",
 		Handler: r,
