@@ -73,7 +73,6 @@ const Xterm = () => {
     
     // Set the terminal in state
     setTerminal(term);
-    
     // Handle window resize
     const handleResize = () => {
       fitAddon.fit();

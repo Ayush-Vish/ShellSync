@@ -48,7 +48,9 @@ func Start(host string, port int) {
 	if err != nil {
 		log.Fatalf("Session creation failed: %v", err)
 	}
-	if err := Terminal(); err != nil {
+	commands := []string{"ls"}
+
+	if err := Terminal(commands); err != nil {
 		log.Fatalf(err.Error())
 	}
 	if err != nil {
