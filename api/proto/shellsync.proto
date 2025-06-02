@@ -10,7 +10,7 @@ service ShellSync {
   rpc CreateSession(CreateRequest) returns (CreateResponse);
 
   // Stream real time commands and op of the terminal
-  // rpc Stream(stream ClientUpdate) returns (stream ServerUpdate);
+   rpc Stream(stream ClientUpdate) returns (stream ServerUpdate);
 
   // Kills a Existing SSH Session. 
   // rpc KillSession(KillRequest) returns (KillResponse);
@@ -23,4 +23,21 @@ message CreateRequest {
 message CreateResponse {
   string session_id = 1;
   string frontend_url = 2;
+}
+
+message ClientUpdate{
+  oneof payload{
+    string client_hello =1 ;
+    bytes pty_output = 2 ;
+
+  }
+
+}
+message ServerUpdate{
+  oneof payload{
+    string server_hello =1 ;
+    bytes pty_input = 2 ;
+
+  }
+
 }

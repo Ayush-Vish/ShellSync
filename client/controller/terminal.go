@@ -11,14 +11,6 @@ import (
 	"golang.org/x/term"
 )
 
-func getDefaultShell() string {
-	shell := os.Getenv("SHELL")
-	if shell != "" {
-		return shell
-	}
-	return "/bin/bash"
-}
-
 type PTY interface {
 	Resize(w, h int) error
 }

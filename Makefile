@@ -15,3 +15,8 @@ run-server:
 run-client:
 	go run ./client/main.go
 
+build-server:
+	go build -o bin/server ./backend/cmd/server
+
+build-client:
+	go build -o bin/client ./client

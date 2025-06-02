@@ -20,6 +20,7 @@ const _ = grpc.SupportPackageIsVersion9
 
 const (
 	ShellSync_CreateSession_FullMethodName = "/shellsync.ShellSync/CreateSession"
+	ShellSync_Stream_FullMethodName        = "/shellsync.ShellSync/Stream"
 )
 
 // ShellSyncClient is the client API for ShellSync service.
@@ -28,6 +29,8 @@ const (
 type ShellSyncClient interface {
 	// Creates a new SSH Session for a given host
 	CreateSession(ctx context.Context, in *CreateRequest, opts ...grpc.CallOption) (*CreateResponse, error)
+	// Stream real time commands and op of the terminal
+	Stream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[ClientUpdate, ServerUpdate], error)
 }
 
 type shellSyncClient struct {
@@ -48,12 +51,27 @@ func (c *shellSyncClient) CreateSession(ctx context.Context, in *CreateRequest, 
 	return out, nil
 }
 
+func (c *shellSyncClient) Stream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[ClientUpdate, ServerUpdate], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &ShellSync_ServiceDesc.Streams[0], ShellSync_Stream_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[ClientUpdate, ServerUpdate]{ClientStream: stream}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type ShellSync_StreamClient = grpc.BidiStreamingClient[ClientUpdate, ServerUpdate]
+
 // ShellSyncServer is the server API for ShellSync service.
 // All implementations must embed UnimplementedShellSyncServer
 // for forward compatibility.
 type ShellSyncServer interface {
 	// Creates a new SSH Session for a given host
 	CreateSession(context.Context, *CreateRequest) (*CreateResponse, error)
+	// Stream real time commands and op of the terminal
+	Stream(grpc.BidiStreamingServer[ClientUpdate, ServerUpdate]) error
 	mustEmbedUnimplementedShellSyncServer()
 }
 
@@ -66,6 +84,9 @@ type UnimplementedShellSyncServer struct{}
 
 func (UnimplementedShellSyncServer) CreateSession(context.Context, *CreateRequest) (*CreateResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateSession not implemented")
+}
+func (UnimplementedShellSyncServer) Stream(grpc.BidiStreamingServer[ClientUpdate, ServerUpdate]) error {
+	return status.Errorf(codes.Unimplemented, "method Stream not implemented")
 }
 func (UnimplementedShellSyncServer) mustEmbedUnimplementedShellSyncServer() {}
 func (UnimplementedShellSyncServer) testEmbeddedByValue()                   {}
@@ -106,6 +127,13 @@ func _ShellSync_CreateSession_Handler(srv interface{}, ctx context.Context, dec 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ShellSync_Stream_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(ShellSyncServer).Stream(&grpc.GenericServerStream[ClientUpdate, ServerUpdate]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type ShellSync_StreamServer = grpc.BidiStreamingServer[ClientUpdate, ServerUpdate]
+
 // ShellSync_ServiceDesc is the grpc.ServiceDesc for ShellSync service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -118,6 +146,13 @@ var ShellSync_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _ShellSync_CreateSession_Handler,
 		},
 	},
-	Streams:  []grpc.StreamDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "Stream",
+			Handler:       _ShellSync_Stream_Handler,
+			ServerStreams: true,
+			ClientStreams: true,
+		},
+	},
 	Metadata: "api/proto/shellsync.proto",
 }
