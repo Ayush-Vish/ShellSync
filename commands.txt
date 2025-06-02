@@ -1,4 +1,4 @@
 ls
 pwd
 echo "Hello"
-htop
+clear

@@ -8,18 +8,10 @@ Shellsync is a collaborative terminal-sharing application. The Go server manages
 
 # TODO:
 
-## MileStone 1 - Go server with Session Creation.
+## MileStones
 
-#### Create a gRPC server and implement CreateSession method and Store the session in in memory map
-
-
-
-```json
-Session Server Side.
-{
-      sessionId,
-  hostId,
-  
-      
-}
-```
+- [x] Create CreateSession functionality.
+- [x] Store session in the in memory state.
+- [x] Configure Pty on the Shellsync Agent.
+- [x] Add Bidirectional streaming functionality b/w the agent and server.
+- [ ] Integrate `xterm.js` component in the frontend.
