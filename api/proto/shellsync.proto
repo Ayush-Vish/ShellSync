@@ -25,14 +25,17 @@ message CreateResponse {
   string frontend_url = 2;
 }
 
-message ClientUpdate{
-  oneof payload{
-    string client_hello =1 ;
-    bytes pty_output = 2 ;
-
+message ClientUpdate {
+  oneof payload {
+    InitialAgentMessage initial_message = 1;
+    bytes pty_output = 2;
   }
-
 }
+
+message InitialAgentMessage {
+  string session_id = 1;
+}
+
 message ServerUpdate{
   oneof payload{
     string server_hello =1 ;

@@ -16,7 +16,7 @@ import (
 	"strings"
 )
 
-func startStream(client pb.ShellSyncClient) error {
+func startStream(client pb.ShellSyncClient, sessionID string) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -25,6 +25,16 @@ func startStream(client pb.ShellSyncClient) error {
 		return err
 	}
 	log.Println("Stream started")
+	initialMsg := &pb.ClientUpdate{
+		Payload: &pb.ClientUpdate_InitialMessage{
+			InitialMessage: &pb.InitialAgentMessage{SessionId: sessionID},
+		},
+	}
+	if err := stream.Send(initialMsg); err != nil {
+		return fmt.Errorf("agent: failed to send initial session ID message: %w", err)
+	}
+
+	log.Printf("Agent: Sent session ID %s to server.", sessionID)
 
 	shell := "/usr/bin/bash"
 	cmd := exec.CommandContext(ctx, shell)
@@ -92,83 +102,94 @@ func startStream(client pb.ShellSyncClient) error {
 			}
 		}
 	}()
-	agentHostname, _ := os.Hostname()
-	helloMsg := fmt.Sprintf("Agent online from %s", agentHostname)
-	if err := stream.Send(&pb.ClientUpdate{Payload: &pb.ClientUpdate_ClientHello{ClientHello: helloMsg}}); err != nil {
-		log.Printf("Agent: Failed to send agent hello: %v", err)
-		cancel() // If we can't even say hello, cancel the operation
+	if err := cmd.Wait(); err != nil && ctx.Err() == nil {
+		log.Printf("Agent: Shell exited with error: %v", err)
 	}
-	shellExitErr := cmd.Wait()
-	cancel()                                     // Ensure everything is signalled to stop once shell exits or an error occurs
-	if shellExitErr != nil && ctx.Err() == nil { // Error not due to our cancellation
-		log.Printf("Agent: Shell exited with error: %v", shellExitErr)
-	} else if ctx.Err() != nil {
-		log.Println("Agent: Shutting down due to context cancellation.")
-	} else {
-		log.Println("Agent: Shell exited gracefully.")
-	}
-	log.Println("PTY Agent finished.")
+
+	log.Println("Agent: PTY session finished.")
+	//agentHostname, _ := os.Hostname()
+	//helloMsg := fmt.Sprintf("Agent online from %s", agentHostname)
+	//if err := stream.Send(&pb.ClientUpdate{Payload: &pb.ClientUpdate_ClientHello{ClientHello: helloMsg}}); err != nil {
+	//	log.Printf("Agent: Failed to send agent hello: %v", err)
+	//	cancel() // If we can't even say hello, cancel the operation
+	//}
+	//shellExitErr := cmd.Wait()
+	//cancel()                                     // Ensure everything is signalled to stop once shell exits or an error occurs
+	//if shellExitErr != nil && ctx.Err() == nil { // Error not due to our cancellation
+	//	log.Printf("Agent: Shell exited with error: %v", shellExitErr)
+	//} else if ctx.Err() != nil {
+	//	log.Println("Agent: Shutting down due to context cancellation.")
+	//} else {
+	//	log.Println("Agent: Shell exited gracefully.")
+	//}
+	//log.Println("PTY Agent finished.")
 	return nil
 }
-func CreateSession(client pb.ShellSyncClient) error {
-	var name string
-	username, err := user.Current()
-	if err != nil {
-		log.Fatal(err)
-		return err
-	}
 
-	hostname, err := os.Hostname()
-	if err == nil {
-		host := strings.SplitN(hostname, ".", 2)[0]
-		name = username.Username + "@" + host
-	} else {
-		name = username.Username
-	}
-	resp, err := client.CreateSession(context.Background(), &pb.CreateRequest{
-		Host: name,
-	})
-	if err != nil {
-		log.Fatalf("Session creation failed: %v", err)
-		return err
-	}
-
-	fmt.Printf("\nSession created! Share this URL:\n\n")
-	fmt.Printf("  ► %s ◄\n\n", resp.FrontendUrl)
-	log.Println("strting Srtreaming ")
-	if err := startStream(client); err != nil {
-		log.Fatalf("Stream failed: %v", err)
-	}
-
-	return nil
-}
+//	func CreateSession(client pb.ShellSyncClient) error {
+//		var name string
+//		username, err := user.Current()
+//		if err != nil {
+//			log.Fatal(err)
+//			return err
+//		}
+//
+//		hostname, err := os.Hostname()
+//		if err == nil {
+//			host := strings.SplitN(hostname, ".", 2)[0]
+//			name = username.Username + "@" + host
+//		} else {
+//			name = username.Username
+//		}
+//		resp, err := client.CreateSession(context.Background(), &pb.CreateRequest{
+//			Host: name,
+//		})
+//		if err != nil {
+//			log.Fatalf("Session creation failed: %v", err)
+//			return err
+//		}
+//
+//		fmt.Printf("\nSession created! Share this URL:\n\n")
+//		fmt.Printf("  ► %s ◄\n\n", resp.FrontendUrl)
+//		log.Println("strting Srtreaming ")
+//		if err := startStream(client); err != nil {
+//			log.Fatalf("Stream failed: %v", err)
+//		}
+//
+//		return nil
+//	}
 func Start(host string, port int) {
 	serverUrl := host + ":" + strconv.Itoa(port)
 	conn, err := grpc.NewClient(serverUrl, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
-		log.Fatalf("failed to connect to gRPC server at localhost:5000: %v", err)
-	}
-	// defer conn.Close()
-	if err != nil {
-		log.Fatalf("Connection failed: %v", err)
+		log.Fatalf("Failed to connect to gRPC server: %v", err)
 	}
 	defer conn.Close()
 
 	client := pb.NewShellSyncClient(conn)
 
-	if err := CreateSession(client); err != nil {
-		log.Fatalf("Session creation failed: %v", err)
+	// Create the agent's identifier string
+	var agentName string
+	username, err := user.Current()
+	if err != nil {
+		agentName = "unknown-agent"
+	} else {
+		hostname, _ := os.Hostname()
+		agentName = fmt.Sprintf("%s@%s", username.Username, strings.SplitN(hostname, ".", 2)[0])
 	}
 
-	//commands := []string{"ls", "pwd"}
-	//if err := Terminal(commands); err != nil {
-	//	log.Fatalf(err.Error())
-	//}
-	//if err != nil {
-	//	log.Fatal(err)
-	//}
+	// 1. Create the session and get the session ID
+	resp, err := client.CreateSession(context.Background(), &pb.CreateRequest{
+		Host: agentName,
+	})
+	if err != nil {
+		log.Fatalf("Session creation failed: %v", err)
+	}
+	log.Printf("Session %s created successfully.", resp.GetSessionId())
+	fmt.Printf("\nShare this URL:\n  ► %s ◄\n\n", resp.GetFrontendUrl())
 
-	//fmt.Printf("\nSession created! Share this URL:\n\n")
-	//fmt.Printf("  ► %s ◄\n\n", resp.FrontendUrl)
-
+	// 2. Start the stream, passing the session ID to be sent
+	if err := startStream(client, resp.GetSessionId()); err != nil {
+		log.Fatalf("Stream failed: %v", err)
+	}
 }

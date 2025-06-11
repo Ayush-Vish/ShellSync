@@ -121,7 +121,7 @@ type ClientUpdate struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Types that are valid to be assigned to Payload:
 	//
-	//	*ClientUpdate_ClientHello
+	//	*ClientUpdate_InitialMessage
 	//	*ClientUpdate_PtyOutput
 	Payload       isClientUpdate_Payload `protobuf_oneof:"payload"`
 	unknownFields protoimpl.UnknownFields
@@ -165,13 +165,13 @@ func (x *ClientUpdate) GetPayload() isClientUpdate_Payload {
 	return nil
 }
 
-func (x *ClientUpdate) GetClientHello() string {
+func (x *ClientUpdate) GetInitialMessage() *InitialAgentMessage {
 	if x != nil {
-		if x, ok := x.Payload.(*ClientUpdate_ClientHello); ok {
-			return x.ClientHello
+		if x, ok := x.Payload.(*ClientUpdate_InitialMessage); ok {
+			return x.InitialMessage
 		}
 	}
-	return ""
+	return nil
 }
 
 func (x *ClientUpdate) GetPtyOutput() []byte {
@@ -187,17 +187,61 @@ type isClientUpdate_Payload interface {
 	isClientUpdate_Payload()
 }
 
-type ClientUpdate_ClientHello struct {
-	ClientHello string `protobuf:"bytes,1,opt,name=client_hello,json=clientHello,proto3,oneof"`
+type ClientUpdate_InitialMessage struct {
+	InitialMessage *InitialAgentMessage `protobuf:"bytes,1,opt,name=initial_message,json=initialMessage,proto3,oneof"`
 }
 
 type ClientUpdate_PtyOutput struct {
 	PtyOutput []byte `protobuf:"bytes,2,opt,name=pty_output,json=ptyOutput,proto3,oneof"`
 }
 
-func (*ClientUpdate_ClientHello) isClientUpdate_Payload() {}
+func (*ClientUpdate_InitialMessage) isClientUpdate_Payload() {}
 
 func (*ClientUpdate_PtyOutput) isClientUpdate_Payload() {}
+
+type InitialAgentMessage struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	SessionId     string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *InitialAgentMessage) Reset() {
+	*x = InitialAgentMessage{}
+	mi := &file_api_proto_shellsync_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *InitialAgentMessage) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*InitialAgentMessage) ProtoMessage() {}
+
+func (x *InitialAgentMessage) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_shellsync_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use InitialAgentMessage.ProtoReflect.Descriptor instead.
+func (*InitialAgentMessage) Descriptor() ([]byte, []int) {
+	return file_api_proto_shellsync_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *InitialAgentMessage) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
+}
 
 type ServerUpdate struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -212,7 +256,7 @@ type ServerUpdate struct {
 
 func (x *ServerUpdate) Reset() {
 	*x = ServerUpdate{}
-	mi := &file_api_proto_shellsync_proto_msgTypes[3]
+	mi := &file_api_proto_shellsync_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -224,7 +268,7 @@ func (x *ServerUpdate) String() string {
 func (*ServerUpdate) ProtoMessage() {}
 
 func (x *ServerUpdate) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_shellsync_proto_msgTypes[3]
+	mi := &file_api_proto_shellsync_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -237,7 +281,7 @@ func (x *ServerUpdate) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ServerUpdate.ProtoReflect.Descriptor instead.
 func (*ServerUpdate) Descriptor() ([]byte, []int) {
-	return file_api_proto_shellsync_proto_rawDescGZIP(), []int{3}
+	return file_api_proto_shellsync_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *ServerUpdate) GetPayload() isServerUpdate_Payload {
@@ -291,12 +335,15 @@ const file_api_proto_shellsync_proto_rawDesc = "" +
 	"\x0eCreateResponse\x12\x1d\n" +
 	"\n" +
 	"session_id\x18\x01 \x01(\tR\tsessionId\x12!\n" +
-	"\ffrontend_url\x18\x02 \x01(\tR\vfrontendUrl\"_\n" +
-	"\fClientUpdate\x12#\n" +
-	"\fclient_hello\x18\x01 \x01(\tH\x00R\vclientHello\x12\x1f\n" +
+	"\ffrontend_url\x18\x02 \x01(\tR\vfrontendUrl\"\x85\x01\n" +
+	"\fClientUpdate\x12I\n" +
+	"\x0finitial_message\x18\x01 \x01(\v2\x1e.shellsync.InitialAgentMessageH\x00R\x0einitialMessage\x12\x1f\n" +
 	"\n" +
 	"pty_output\x18\x02 \x01(\fH\x00R\tptyOutputB\t\n" +
-	"\apayload\"]\n" +
+	"\apayload\"4\n" +
+	"\x13InitialAgentMessage\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x01 \x01(\tR\tsessionId\"]\n" +
 	"\fServerUpdate\x12#\n" +
 	"\fserver_hello\x18\x01 \x01(\tH\x00R\vserverHello\x12\x1d\n" +
 	"\tpty_input\x18\x02 \x01(\fH\x00R\bptyInputB\t\n" +
@@ -317,23 +364,25 @@ func file_api_proto_shellsync_proto_rawDescGZIP() []byte {
 	return file_api_proto_shellsync_proto_rawDescData
 }
 
-var file_api_proto_shellsync_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
+var file_api_proto_shellsync_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_api_proto_shellsync_proto_goTypes = []any{
-	(*CreateRequest)(nil),  // 0: shellsync.CreateRequest
-	(*CreateResponse)(nil), // 1: shellsync.CreateResponse
-	(*ClientUpdate)(nil),   // 2: shellsync.ClientUpdate
-	(*ServerUpdate)(nil),   // 3: shellsync.ServerUpdate
+	(*CreateRequest)(nil),       // 0: shellsync.CreateRequest
+	(*CreateResponse)(nil),      // 1: shellsync.CreateResponse
+	(*ClientUpdate)(nil),        // 2: shellsync.ClientUpdate
+	(*InitialAgentMessage)(nil), // 3: shellsync.InitialAgentMessage
+	(*ServerUpdate)(nil),        // 4: shellsync.ServerUpdate
 }
 var file_api_proto_shellsync_proto_depIdxs = []int32{
-	0, // 0: shellsync.ShellSync.CreateSession:input_type -> shellsync.CreateRequest
-	2, // 1: shellsync.ShellSync.Stream:input_type -> shellsync.ClientUpdate
-	1, // 2: shellsync.ShellSync.CreateSession:output_type -> shellsync.CreateResponse
-	3, // 3: shellsync.ShellSync.Stream:output_type -> shellsync.ServerUpdate
-	2, // [2:4] is the sub-list for method output_type
-	0, // [0:2] is the sub-list for method input_type
-	0, // [0:0] is the sub-list for extension type_name
-	0, // [0:0] is the sub-list for extension extendee
-	0, // [0:0] is the sub-list for field type_name
+	3, // 0: shellsync.ClientUpdate.initial_message:type_name -> shellsync.InitialAgentMessage
+	0, // 1: shellsync.ShellSync.CreateSession:input_type -> shellsync.CreateRequest
+	2, // 2: shellsync.ShellSync.Stream:input_type -> shellsync.ClientUpdate
+	1, // 3: shellsync.ShellSync.CreateSession:output_type -> shellsync.CreateResponse
+	4, // 4: shellsync.ShellSync.Stream:output_type -> shellsync.ServerUpdate
+	3, // [3:5] is the sub-list for method output_type
+	1, // [1:3] is the sub-list for method input_type
+	1, // [1:1] is the sub-list for extension type_name
+	1, // [1:1] is the sub-list for extension extendee
+	0, // [0:1] is the sub-list for field type_name
 }
 
 func init() { file_api_proto_shellsync_proto_init() }
@@ -342,10 +391,10 @@ func file_api_proto_shellsync_proto_init() {
 		return
 	}
 	file_api_proto_shellsync_proto_msgTypes[2].OneofWrappers = []any{
-		(*ClientUpdate_ClientHello)(nil),
+		(*ClientUpdate_InitialMessage)(nil),
 		(*ClientUpdate_PtyOutput)(nil),
 	}
-	file_api_proto_shellsync_proto_msgTypes[3].OneofWrappers = []any{
+	file_api_proto_shellsync_proto_msgTypes[4].OneofWrappers = []any{
 		(*ServerUpdate_ServerHello)(nil),
 		(*ServerUpdate_PtyInput)(nil),
 	}
@@ -355,7 +404,7 @@ func file_api_proto_shellsync_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_proto_shellsync_proto_rawDesc), len(file_api_proto_shellsync_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   4,
+			NumMessages:   5,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

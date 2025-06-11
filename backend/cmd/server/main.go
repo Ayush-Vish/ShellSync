@@ -23,8 +23,7 @@ func main() {
 	shellService := service.NewShellSyncService()
 	wsHub := websocket.NewHub(shellService)
 
-	// Start WebSocket hub
-	go wsHub.Run()
+	shellService.SetHub(wsHub)
 
 	// Setup gRPC server
 	grpcServer := grpc.NewServer()
@@ -33,7 +32,7 @@ func main() {
 	go func() {
 		lis, err := net.Listen("tcp", ":5000")
 		if err != nil {
-			log.Fatalf("Failed to listen: %v", err)
+			log.Fatalf("Failed to listen for gRPC: %v", err)
 		}
 		log.Println("gRPC server started on http://localhost:5000")
 		if err := grpcServer.Serve(lis); err != nil {
@@ -41,12 +40,12 @@ func main() {
 		}
 	}()
 
-	// Setup HTTP server
+	// --- HTTP Server Setup ---
 	r := mux.NewRouter()
 	r.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("This is a test message"))
+		w.Write([]byte("ShellSync Backend is Running!"))
 	})
-	//r.HandleFunc("/ws", wsHub.HandleWebSocket)
+	// Endpoint for frontend to get a list of active sessions
 	r.HandleFunc("/s", func(w http.ResponseWriter, r *http.Request) {
 		sessions := shellService.GetSessions()
 		w.Header().Set("Content-Type", "application/json")
@@ -54,9 +53,11 @@ func main() {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-
 	})
+
+	// Add the WebSocket route handler
 	r.HandleFunc("/ws", wsHub.HandleWebSocket)
+
 	httpServer := &http.Server{
 		Addr:    ":8080",
 		Handler: r,
@@ -69,24 +70,18 @@ func main() {
 		}
 	}()
 
-	// Wait for termination signal
+	// --- Graceful Shutdown ---
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 	<-sigs
 
 	log.Println("Shutting down servers...")
-
-	// Graceful shutdown
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Stop HTTP server
 	if err := httpServer.Shutdown(ctx); err != nil {
 		log.Printf("HTTP server shutdown error: %v", err)
 	}
-
-	// Stop gRPC server
 	grpcServer.GracefulStop()
-
 	log.Println("Shutdown complete.")
 }

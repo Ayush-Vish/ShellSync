@@ -1,11 +1,11 @@
 package websocket
 
 import (
+	"github.com/Ayush-Vish/shellsync/backend/internal/types"
 	"log"
 	"net/http"
 	"sync"
 
-	"github.com/Ayush-Vish/shellsync/backend/internal/service"
 	"github.com/gorilla/websocket"
 )
 
@@ -13,27 +13,18 @@ var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool { return true },
 }
 
-type Message struct {
-	Type      string `json:"type"` // can be "pty_input", "pty_output", "join"
-	Content   string `json:"content"`
-	Sender    string `json:"sender"`
-	SessionID string `json:"sessionId"`
-}
-
 type Hub struct {
-	service       *service.ShellSyncService
-	clients       map[string]*websocket.Conn // clientID -> connection
-	broadcast     chan Message
-	outputFromPty chan Message
-	mu            sync.Mutex
+	service  types.PTYService
+	clients  map[string]*websocket.Conn // Maps clientID -> connection
+	sessions map[string]map[string]bool // Maps sessionID -> set of clientIDs
+	mu       sync.RWMutex               // Protects clients and sessions maps
 }
 
-func NewHub(service *service.ShellSyncService) *Hub {
+func NewHub(service types.PTYService) *Hub {
 	return &Hub{
-		service:       service,
-		clients:       make(map[string]*websocket.Conn),
-		broadcast:     make(chan Message),
-		outputFromPty: make(chan Message),
+		service:  service,
+		clients:  make(map[string]*websocket.Conn),
+		sessions: make(map[string]map[string]bool),
 	}
 }
 
@@ -58,65 +49,98 @@ func (h *Hub) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 		log.Printf("WebSocket upgrade failed for Client %s: %v", clientID, err)
 		return
 	}
+	if err != nil {
+		log.Printf("WebSocket upgrade failed for Client %s: %v", clientID, err)
+		return
+	}
 
-	log.Printf("Client %s connected to session %s", clientID, sessionID)
-
-	h.mu.Lock()
-	h.clients[clientID] = conn
-	h.mu.Unlock()
-	h.service.AddClientToSession(sessionID, clientID) // Assuming clientID can also be the name for now
-
-	go h.handleClient(clientID, sessionID, conn)
+	h.registerClient(conn, sessionID, clientID)
+	go h.readLoop(conn, sessionID, clientID)
 }
+func (h *Hub) registerClient(conn *websocket.Conn, sessionID, clientID string) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
 
-func (h *Hub) handleClient(clientID, sessionID string, conn *websocket.Conn) {
-	defer func() {
-		h.mu.Lock()
+	h.clients[clientID] = conn
+	if h.sessions[sessionID] == nil {
+		h.sessions[sessionID] = make(map[string]bool)
+	}
+	h.sessions[sessionID][clientID] = true
+	h.service.AddClientToSession(sessionID, clientID)
+	log.Printf("Client %s registered to session %s", clientID, sessionID)
+}
+func (h *Hub) unregisterClient(clientID, sessionID string) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	if _, ok := h.clients[clientID]; ok {
 		delete(h.clients, clientID)
-		h.mu.Unlock()
-		conn.Close()
-		log.Printf("Client %s disconnected from session %s", clientID, sessionID)
-	}()
-
-	for {
-		var msg Message
-		// Read a new message as JSON from the WebSocket connection.
-		err := conn.ReadJSON(&msg)
-		if err != nil {
-			log.Printf("Error reading message from Client %s: %v", clientID, err)
-			break // Exit loop on error (e.g., connection closed)
+		if h.sessions[sessionID] != nil {
+			delete(h.sessions[sessionID], clientID)
+			if len(h.sessions[sessionID]) == 0 {
+				delete(h.sessions, sessionID)
+			}
 		}
-
-		log.Printf("Received from Client %s: Type=%s , content= %s", clientID, msg.Type, msg.Content)
-		msg.Sender = clientID
-		// Send the message to the broadcast channel to be processed by Run().
-		h.broadcast <- msg
+		log.Printf("Client %s unregistered from session %s", clientID, sessionID)
 	}
 }
 
-func (h *Hub) Run() {
-	log.Println("WebSocket Hub started")
-	for msg := range h.broadcast {
-		log.Printf("Broadcasting message from %s (Type: %s)", msg.Sender, msg.Type)
+func (h *Hub) readLoop(conn *websocket.Conn, sessionID, clientID string) {
+	defer func() {
+		h.unregisterClient(clientID, sessionID)
+		conn.Close()
+	}()
 
-		switch msg.Type {
-		case "pty_input":
-
+	for {
+		var msg types.Message
+		if err := conn.ReadJSON(&msg); err != nil {
+			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+				log.Printf("Error reading from client %s: %v", clientID, err)
+			}
+			break
 		}
-		h.mu.Lock()
-		// Iterate over all connected clients to broadcast the message.
-		for clientID, conn := range h.clients {
-			// This minimal example broadcasts to everyone *except* the original sender.
-			if clientID != msg.Sender {
-				err := conn.WriteJSON(msg)
-				if err != nil {
-					log.Printf("Error sending message to Client %s: %v", clientID, err)
-					// On error, assume client disconnected, remove them and close connection.
-					delete(h.clients, clientID)
-					conn.Close()
-				}
+
+		// When a 'pty_input' message is received, forward it for processing.
+		if msg.Type == "pty_input" {
+			h.processPtyInput(sessionID, clientID, msg.Content)
+		}
+	}
+}
+func (h *Hub) processPtyInput(sessionID, senderClientID, content string) {
+	log.Printf("Processing pty_input for session %s from sender %s", sessionID, senderClientID)
+
+	// 1. Forward the raw input to the backend PTY agent for execution.
+	//    The service layer will handle the gRPC communication.
+	h.service.ForwardInputToAgent(sessionID, []byte(content))
+
+	// 2. Broadcast the input to all clients in the session for immediate UI feedback.
+	//    The PTY will eventually echo this back, but broadcasting gives a faster "feel".
+	//    We will send it as type 'pty_output' to be written by the terminal.
+	messageToBroadcast := types.Message{
+		Type:    "pty_output",
+		Content: content,
+		Sender:  senderClientID, // Let clients know who typed it
+	}
+	h.BroadcastToSession(sessionID, messageToBroadcast)
+}
+
+// BroadcastToSession sends a message to all clients in a specific session.
+func (h *Hub) BroadcastToSession(sessionID string, message types.Message) {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	sessionClients, ok := h.sessions[sessionID]
+	if !ok {
+		return // No clients in this session
+	}
+
+	for clientID := range sessionClients {
+		conn, clientOk := h.clients[clientID]
+		if clientOk {
+			if err := conn.WriteJSON(message); err != nil {
+				log.Printf("Error writing message to client %s: %v", clientID, err)
+				// Consider unregistering the client on write error
 			}
 		}
-		h.mu.Unlock()
 	}
 }
