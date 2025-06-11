@@ -13,7 +13,7 @@ import {
   ExternalLink
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { GlowingStarsBackgroundCardPreview, HeroSection } from '@/components/cards/HeroSection';
+import {  HeroSection } from '@/components/cards/HeroSection';
 
 export default function Home() {
   const [typedText, setTypedText] = useState('');

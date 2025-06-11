@@ -189,7 +189,7 @@ func (s *ShellSyncService) CreateSession(ctx context.Context, req *pb.CreateRequ
 
 	return &pb.CreateResponse{
 		SessionId:   sessionID,
-		FrontendUrl: fmt.Sprintf("http://localhost:3000/s/%s?client_id=%s", sessionID, req.GetHost()),
+		FrontendUrl: fmt.Sprintf("http://localhost:3000/ws/%s?client_id=%s", sessionID, req.GetHost()),
 	}, nil
 }
 
@@ -218,26 +218,25 @@ func (s *ShellSyncService) GetSessions() []*Session {
 	return sessions
 }
 
-//func (s *ShellSyncService) AddClientToSession(sessionID, clientID string) bool {
-//	s.mu.Lock()
-//	defer s.mu.Unlock()
-//
-//	session, exists := s.sessions[sessionID]
-//	if !exists {
-//		log.Printf("Failed to add client %s: session %s not found", clientID, sessionID)
-//		return false
-//	}
-//
-//	session.mu.Lock()
-//	defer session.mu.Unlock()
-//
-//	session.Clients[clientID] = &Client{
-//		ID:       clientID,
-//		IsAdmin:  false,
-//		LastSeen: time.Now(),
-//	}
-//
-//	log.Printf("Added client %s to session %s", clientID, sessionID)
-//
-//	return true
-//}
+func (s *ShellSyncService) AddClientToSession(sessionID, clientID string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	session, exists := s.sessions[sessionID]
+	if !exists {
+		log.Printf("Failed to add client %s: session %s not found", clientID, sessionID)
+		return false
+	}
+
+	session.mu.Lock()
+	defer session.mu.Unlock()
+
+	session.Clients[clientID] = &Client{
+		ID:       clientID,
+		LastSeen: time.Now(),
+	}
+
+	log.Printf("Added client %s to session %s", clientID, sessionID)
+
+	return true
+}

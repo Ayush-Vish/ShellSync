@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"github.com/Ayush-Vish/shellsync/backend/internal/websocket"
 	"log"
 	"net"
 	"net/http"
@@ -20,10 +21,10 @@ import (
 func main() {
 	// Initialize services
 	shellService := service.NewShellSyncService()
-	//wsHub := websocket.NewHub(shellService)
+	wsHub := websocket.NewHub(shellService)
 
 	// Start WebSocket hub
-	//go wsHub.Run()
+	go wsHub.Run()
 
 	// Setup gRPC server
 	grpcServer := grpc.NewServer()
@@ -55,6 +56,7 @@ func main() {
 		}
 
 	})
+	r.HandleFunc("/ws", wsHub.HandleWebSocket)
 	httpServer := &http.Server{
 		Addr:    ":8080",
 		Handler: r,

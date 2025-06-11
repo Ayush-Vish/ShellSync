@@ -15,3 +15,11 @@ Shellsync is a collaborative terminal-sharing application. The Go server manages
 - [x] Configure Pty on the Shellsync Agent.
 - [x] Add Bidirectional streaming functionality b/w the agent and server.
 - [ ] Integrate `xterm.js` component in the frontend.
+- [ ] Connect via WebSocket.
+
+
+## Challenges Faced.
+
+- Bidirectional Grpc Implementation.
+- Setting up Pseudo Terminals.
+- 
