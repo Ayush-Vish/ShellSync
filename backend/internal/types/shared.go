@@ -1,7 +1,6 @@
 package types
 
 import (
-	"github.com/gorilla/websocket"
 	"sync"
 	"time"
 )
@@ -15,12 +14,6 @@ type Message struct {
 	Type    string `json:"type"`
 	Content string `json:"content"`
 	Sender  string `json:"sender"`
-}
-type Hub struct {
-	service  PTYService
-	clients  map[string]*websocket.Conn // Maps clientID -> connection
-	sessions map[string]map[string]bool // Maps sessionID -> set of clientIDs
-	mu       sync.RWMutex               // Protects clients and sessions maps
 }
 
 type PtyOutputBroadcaster interface {

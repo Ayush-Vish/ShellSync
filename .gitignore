@@ -134,3 +134,7 @@ go.work.sum
 # env fil
 
 tmp
+.env
+
+.env.prod
+.env.temp

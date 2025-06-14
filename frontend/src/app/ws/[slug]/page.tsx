@@ -45,13 +45,27 @@ export default function JoinPage() {
 
 
     return (
-        <div className="h-screen bg-black p-4 flex flex-col">
-            <header className="mb-2 text-center text-sm text-gray-500">
-                Session ID: <span className="font-mono text-gray-400">{sessionId}</span> | Client ID: <span className="font-mono text-gray-400">{clientId}</span>
-            </header>
-            <div className="w-full flex-grow rounded-lg border-2 border-gray-700 overflow-hidden">
-                <Xterm ref={xTermref} onData={handleTerminalData} />
-            </div>
-        </div>
-    );
+  <div className="h-screen bg-black p-4 flex flex-col">
+    <header className="mb-2 text-center text-sm text-gray-500">
+      Session ID: <span className="font-mono text-gray-400">{sessionId}</span> | 
+      Client ID: <span className="font-mono text-gray-400">{clientId}</span>
+    </header>
+
+    {/* Terminal Container with macOS buttons */}
+    <div className="flex-grow flex flex-col rounded-lg overflow-hidden border border-gray-700 bg-[#1e1e1e]">
+      {/* macOS style buttons */}
+      <div className="flex space-x-2 px-4 py-2 bg-[#2d2d2d]">
+        <div className="w-3 h-3 bg-red-500 rounded-full" />
+        <div className="w-3 h-3 bg-yellow-500 rounded-full" />
+        <div className="w-3 h-3 bg-green-500 rounded-full" />
+      </div>
+
+      {/* Terminal itself */}
+      <div className="flex-grow">
+        <Xterm ref={xTermref} onData={handleTerminalData} />
+      </div>
+    </div>
+  </div>
+);
+
 }

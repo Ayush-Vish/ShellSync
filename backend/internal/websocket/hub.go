@@ -116,12 +116,12 @@ func (h *Hub) processPtyInput(sessionID, senderClientID, content string) {
 	// 2. Broadcast the input to all clients in the session for immediate UI feedback.
 	//    The PTY will eventually echo this back, but broadcasting gives a faster "feel".
 	//    We will send it as type 'pty_output' to be written by the terminal.
-	messageToBroadcast := types.Message{
-		Type:    "pty_output",
-		Content: content,
-		Sender:  senderClientID, // Let clients know who typed it
-	}
-	h.BroadcastToSession(sessionID, messageToBroadcast)
+	//messageToBroadcast := types.Message{
+	//	Type:    "pty_output",
+	//	Content: content,
+	//	Sender:  senderClientID, // Let clients know who typed it
+	//}
+	//h.BroadcastToSession(sessionID, messageToBroadcast)
 }
 
 // BroadcastToSession sends a message to all clients in a specific session.

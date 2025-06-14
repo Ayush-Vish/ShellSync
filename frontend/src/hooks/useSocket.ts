@@ -22,7 +22,7 @@ export function useTerminalSocket(
       return // Don't try to connect if we already have a connecting/open socket
     }
 
-    const wsUrl = `ws://localhost:8080/ws?session_id=${sessionId}&client_id=${clientId}`;
+    const wsUrl = `http://3.82.106.81:8080/ws?session_id=${sessionId}&client_id=${clientId}`;
     console.log(`Connecting to WebSocket: ${wsUrl}`)
     const ws = new WebSocket(wsUrl)
 

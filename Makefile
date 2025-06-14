@@ -19,4 +19,17 @@ build-server:
 	go build -o bin/server ./backend/cmd/server
 
 build-client:
-	go build -o bin/client ./client
+	@echo "Building for Linux (amd64)..."
+	GOOS=linux GOARCH=amd64 go build -o bin/client-linux-amd64 ./client
+
+#	@echo "Building for Linux (arm64)..."
+#	GOOS=linux GOARCH=arm64 go build -o bin/client-linux-arm64 ./client
+#
+#	@echo "Building for macOS (amd64)..."
+#	GOOS=darwin GOARCH=amd64 go build -o bin/client-darwin-amd64 ./client
+#
+#	@echo "Building for macOS (arm64/M1)..."
+#	GOOS=darwin GOARCH=arm64 go build -o bin/client-darwin-arm64 ./client
+#
+#	@echo "Building for Windows (amd64)..."
+#	GOOS=windows GOARCH=amd64 go build -o bin/client-windows-amd64.exe ./client
