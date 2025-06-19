@@ -62,7 +62,7 @@ func (s *ShellSyncService) Stream(stream pb.ShellSync_StreamServer) error {
 	log.Println("Server: New agent stream connected. Waiting for initial message...")
 	ctx := stream.Context()
 
-	// 1. Agent MUST send its session ID in the first message.
+	// 1. Agent MUST send its session id in the first message
 	initialMsg, err := stream.Recv()
 	if err != nil {
 		log.Printf("Failed to receive initial message from agent: %v", err)
@@ -85,7 +85,7 @@ func (s *ShellSyncService) Stream(stream pb.ShellSync_StreamServer) error {
 	}
 	log.Printf("Agent successfully associated with session %s", sessionID)
 
-	// Goroutine: forward PTY output from Agent -> WebSocket Hub
+	// Goroutine => forward PTY output from Agent -> WebSocket Hub
 	go func() {
 		for {
 			msgFromAgent, err := stream.Recv()
@@ -109,7 +109,7 @@ func (s *ShellSyncService) Stream(stream pb.ShellSync_StreamServer) error {
 		}
 	}()
 
-	// Goroutine: forward commands from WebSocket Hub -> Agent
+	// Goroutine => forward commands from WebSocket Hub -> Agent
 	for {
 		select {
 		case <-ctx.Done():
@@ -144,7 +144,6 @@ func (s *ShellSyncService) ForwardInputToAgent(sessionID string, input []byte) {
 	}
 }
 
-// GetSession, AddClientToSession, GetSessions...
 func (s *ShellSyncService) GetSession(sessionID string) (*types.Session, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -152,11 +151,9 @@ func (s *ShellSyncService) GetSession(sessionID string) (*types.Session, bool) {
 	return session, exists
 }
 func (s *ShellSyncService) AddClientToSession(sessionID, clientID string) bool {
-	// Your implementation from previous steps...
 	return true
 }
 func (s *ShellSyncService) GetSessions() []*types.Session {
-	// Your implementation from previous steps...
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	var sessions []*types.Session

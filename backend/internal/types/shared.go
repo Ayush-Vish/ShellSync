@@ -7,8 +7,8 @@ import (
 
 type PTYService interface {
 	ForwardInputToAgent(sessionID string, input []byte)
-	GetSession(sessionID string) (*Session, bool)       // Hub needs this to validate sessions
-	AddClientToSession(sessionID, clientID string) bool // Hub needs this to add clients
+	GetSession(sessionID string) (*Session, bool)
+	AddClientToSession(sessionID, clientID string) bool
 }
 type Message struct {
 	Type    string `json:"type"`

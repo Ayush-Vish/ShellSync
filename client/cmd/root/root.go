@@ -24,7 +24,7 @@ var rootCmd = &cobra.Command{
 }
 
 func init() {
-	rootCmd.PersistentFlags().StringVar(&host, "host", "3.82.106.81", "Host to connect to")
+	rootCmd.PersistentFlags().StringVar(&host, "host", "shellsync-1.onrender.com", "Host to connect to")
 	rootCmd.PersistentFlags().IntVar(&port, "port", 5000, "Port to connect to")
 
 }

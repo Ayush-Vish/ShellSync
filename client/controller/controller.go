@@ -107,57 +107,10 @@ func startStream(client pb.ShellSyncClient, sessionID string) error {
 	}
 
 	log.Println("Agent: PTY session finished.")
-	//agentHostname, _ := os.Hostname()
-	//helloMsg := fmt.Sprintf("Agent online from %s", agentHostname)
-	//if err := stream.Send(&pb.ClientUpdate{Payload: &pb.ClientUpdate_ClientHello{ClientHello: helloMsg}}); err != nil {
-	//	log.Printf("Agent: Failed to send agent hello: %v", err)
-	//	cancel() // If we can't even say hello, cancel the operation
-	//}
-	//shellExitErr := cmd.Wait()
-	//cancel()                                     // Ensure everything is signalled to stop once shell exits or an error occurs
-	//if shellExitErr != nil && ctx.Err() == nil { // Error not due to our cancellation
-	//	log.Printf("Agent: Shell exited with error: %v", shellExitErr)
-	//} else if ctx.Err() != nil {
-	//	log.Println("Agent: Shutting down due to context cancellation.")
-	//} else {
-	//	log.Println("Agent: Shell exited gracefully.")
-	//}
-	//log.Println("PTY Agent finished.")
+
 	return nil
 }
 
-//	func CreateSession(client pb.ShellSyncClient) error {
-//		var name string
-//		username, err := user.Current()
-//		if err != nil {
-//			log.Fatal(err)
-//			return err
-//		}
-//
-//		hostname, err := os.Hostname()
-//		if err == nil {
-//			host := strings.SplitN(hostname, ".", 2)[0]
-//			name = username.Username + "@" + host
-//		} else {
-//			name = username.Username
-//		}
-//		resp, err := client.CreateSession(context.Background(), &pb.CreateRequest{
-//			Host: name,
-//		})
-//		if err != nil {
-//			log.Fatalf("Session creation failed: %v", err)
-//			return err
-//		}
-//
-//		fmt.Printf("\nSession created! Share this URL:\n\n")
-//		fmt.Printf("  ► %s ◄\n\n", resp.FrontendUrl)
-//		log.Println("strting Srtreaming ")
-//		if err := startStream(client); err != nil {
-//			log.Fatalf("Stream failed: %v", err)
-//		}
-//
-//		return nil
-//	}
 func Start(host string, port int) {
 	serverUrl := host + ":" + strconv.Itoa(port)
 	conn, err := grpc.NewClient(serverUrl, grpc.WithTransportCredentials(insecure.NewCredentials()))

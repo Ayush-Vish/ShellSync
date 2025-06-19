@@ -138,3 +138,5 @@ tmp
 
 .env.prod
 .env.temp
+
+.pem

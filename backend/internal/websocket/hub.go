@@ -99,8 +99,6 @@ func (h *Hub) readLoop(conn *websocket.Conn, sessionID, clientID string) {
 			}
 			break
 		}
-
-		// When a 'pty_input' message is received, forward it for processing.
 		if msg.Type == "pty_input" {
 			h.processPtyInput(sessionID, clientID, msg.Content)
 		}
@@ -108,30 +106,15 @@ func (h *Hub) readLoop(conn *websocket.Conn, sessionID, clientID string) {
 }
 func (h *Hub) processPtyInput(sessionID, senderClientID, content string) {
 	log.Printf("Processing pty_input for session %s from sender %s", sessionID, senderClientID)
-
-	// 1. Forward the raw input to the backend PTY agent for execution.
-	//    The service layer will handle the gRPC communication.
 	h.service.ForwardInputToAgent(sessionID, []byte(content))
-
-	// 2. Broadcast the input to all clients in the session for immediate UI feedback.
-	//    The PTY will eventually echo this back, but broadcasting gives a faster "feel".
-	//    We will send it as type 'pty_output' to be written by the terminal.
-	//messageToBroadcast := types.Message{
-	//	Type:    "pty_output",
-	//	Content: content,
-	//	Sender:  senderClientID, // Let clients know who typed it
-	//}
-	//h.BroadcastToSession(sessionID, messageToBroadcast)
 }
-
-// BroadcastToSession sends a message to all clients in a specific session.
 func (h *Hub) BroadcastToSession(sessionID string, message types.Message) {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 
 	sessionClients, ok := h.sessions[sessionID]
 	if !ok {
-		return // No clients in this session
+		return
 	}
 
 	for clientID := range sessionClients {
@@ -139,7 +122,6 @@ func (h *Hub) BroadcastToSession(sessionID string, message types.Message) {
 		if clientOk {
 			if err := conn.WriteJSON(message); err != nil {
 				log.Printf("Error writing message to client %s: %v", clientID, err)
-				// Consider unregistering the client on write error
 			}
 		}
 	}
