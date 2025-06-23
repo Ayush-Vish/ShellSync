@@ -11,7 +11,7 @@ import React, {
     cloneElement,
     isValidElement
 } from 'react';
-import { TouchZoom, INITIAL_ZOOM } from '@/utils/touchZoom'; // Adjust import path
+import { TouchZoom, INITIAL_ZOOM } from '@/utils/touchZoom';
 
 export interface CanvasRef {
     resetView: () => void;
@@ -31,7 +31,6 @@ const InfiniteCanvas = forwardRef<CanvasRef, InfiniteCanvasProps>(({ children },
 
     const isPanning = useRef(false);
 
-    // This function will be passed to children to let them lock/unlock canvas panning.
     const setCanvasPanningLocked = (isLocked: boolean) => {
         if (touchZoomRef.current) {
             touchZoomRef.current.isPanningLocked = isLocked;
@@ -88,7 +87,7 @@ const InfiniteCanvas = forwardRef<CanvasRef, InfiniteCanvasProps>(({ children },
     return (
         <div
             ref={canvasRef}
-            className="h-full w-full overflow-hidden bg-neutral-900 relative touch-none"
+            className="h-full w-full overflow-hidden bg-white relative touch-none"
             style={{ cursor: 'grab' }}
             onMouseDown={handleMouseDown}
             onMouseUp={handleMouseUp}
@@ -101,8 +100,7 @@ const InfiniteCanvas = forwardRef<CanvasRef, InfiniteCanvasProps>(({ children },
                     transformOrigin: 'top left',
                 }}
             >
-                {/* Clone children to inject the zoom and the pan-locking function */}
-                {Children.map(children, (child) => {
+                                {Children.map(children, (child) => {
                     if (isValidElement(child)) {
                         return cloneElement(child as React.ReactElement<any>, {
                             zoom,

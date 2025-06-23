@@ -6,27 +6,61 @@ import (
 )
 
 type PTYService interface {
-	ForwardInputToAgent(sessionID string, input []byte)
+	ForwardInputToAgent(sessionID, terminalID string, input []byte)
+
+	RequestNewTerminal(sessionID, frontendID string)
 	GetSession(sessionID string) (*Session, bool)
+	GetSessions() []*Session
 	AddClientToSession(sessionID, clientID string) bool
+
+	SetHub(hub PtyOutputBroadcaster)
 }
+
 type Message struct {
-	Type    string `json:"type"`
-	Content string `json:"content"`
-	Sender  string `json:"sender"`
+	Type       string `json:"type"`
+	TerminalID string `json:"terminal_id,omitempty"`
+	Content    string `json:"content,omitempty"`
+	Sender     string `json:"sender,omitempty"`
+	FrontendID string `json:"frontend_id,omitempty"`
+	Error      string `json:"error,omitempty"`
 }
 
 type PtyOutputBroadcaster interface {
 	BroadcastToSession(sessionID string, message Message)
 }
+
 type Session struct {
 	ID             string
 	Host           string
 	CreatedAt      time.Time
 	Clients        map[string]*Client
-	AgentInputChan chan []byte // Channel to send commands TO the agent
-	mu             sync.Mutex
+	AgentInputChan chan AgentCommand // Channel to send commands TO the agent
+	Terminals      map[string]*Terminal
+	Mu             sync.RWMutex
 }
+
+type Terminal struct {
+	ID        string
+	CreatedAt time.Time
+}
+
+type AgentCommand interface {
+	isAgentCommand()
+}
+
+type PtyInputData struct {
+	TerminalID string
+	Data       []byte
+}
+
+func (PtyInputData) isAgentCommand() {}
+
+type CreateTerminalCmd struct {
+	FrontendID string
+}
+
+func (CreateTerminalCmd) isAgentCommand() {}
+
 type Client struct {
 	ID       string
 	Name     string

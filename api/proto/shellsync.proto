@@ -5,17 +5,14 @@ option go_package = "github.com/Ayush-Vish/shellsync/api/proto";
 package shellsync;
 
 service ShellSync {
-  
+
   // Creates a new SSH Session for a given host
   rpc CreateSession(CreateRequest) returns (CreateResponse);
 
   // Stream real time commands and op of the terminal
-   rpc Stream(stream ClientUpdate) returns (stream ServerUpdate);
-
-  // Kills a Existing SSH Session. 
-  // rpc KillSession(KillRequest) returns (KillResponse);
-
+  rpc Stream(stream ClientUpdate) returns (stream ServerUpdate);
 }
+
 message CreateRequest {
   string host = 1;
 }
@@ -25,10 +22,12 @@ message CreateResponse {
   string frontend_url = 2;
 }
 
+// --- Messages from Agent (Client) to Server ---
 message ClientUpdate {
   oneof payload {
     InitialAgentMessage initial_message = 1;
-    bytes pty_output = 2;
+    TerminalOutput pty_output = 2;
+    TerminalCreatedResponse terminal_created_response = 3; // Agent confirms terminal creation
   }
 }
 
@@ -36,11 +35,30 @@ message InitialAgentMessage {
   string session_id = 1;
 }
 
+message TerminalOutput {
+  string terminal_id = 1;
+  bytes data = 2;
+}
+
+message TerminalCreatedResponse {
+  string terminal_id = 1; // The ID of the newly created terminal
+}
+
+
+// --- Messages from Server to Agent (Client) ---
 message ServerUpdate{
   oneof payload{
-    string server_hello =1 ;
-    bytes pty_input = 2 ;
-
+    string server_hello =1;
+    TerminalInput pty_input = 2;
+    CreateTerminalRequest create_terminal_request = 3; // Server asks agent to create a terminal
   }
+}
 
+message TerminalInput {
+  string terminal_id = 1;
+  bytes data = 2;
+}
+
+message CreateTerminalRequest {
+  // Can be extended with shell type, etc. in the future
 }

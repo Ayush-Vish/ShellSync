@@ -3,10 +3,6 @@ package controller
 import (
 	"context"
 	"fmt"
-	pb "github.com/Ayush-Vish/shellsync/api/proto"
-	"github.com/creack/pty"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 	"io"
 	"log"
 	"os"
@@ -14,7 +10,86 @@ import (
 	"os/user"
 	"strconv"
 	"strings"
+	"sync"
+
+	pb "github.com/Ayush-Vish/shellsync/api/proto"
+	"github.com/creack/pty"
+	"github.com/google/uuid"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
+
+type Agent struct {
+	ptys map[string]*os.File
+	mu   sync.RWMutex
+}
+
+func NewAgent() *Agent {
+	return &Agent{
+		ptys: make(map[string]*os.File),
+	}
+}
+
+func (a *Agent) spawnNewPty(ctx context.Context, stream pb.ShellSync_StreamClient) error {
+	terminalID := "term-" + uuid.New().String()[:8]
+	shell := "/bin/bash"
+	cmd := exec.CommandContext(ctx, shell)
+
+	ptmx, err := pty.Start(cmd)
+	if err != nil {
+		log.Printf("Agent: Failed to start PTY for new terminal %s: %v", terminalID, err)
+		return err
+	}
+	log.Printf("Agent: New PTY started with ID: %s", terminalID)
+
+	a.mu.Lock()
+	a.ptys[terminalID] = ptmx
+	a.mu.Unlock()
+
+	go func() {
+		defer func() {
+			a.mu.Lock()
+			ptmx.Close()
+			delete(a.ptys, terminalID)
+			a.mu.Unlock()
+			log.Printf("Agent: Cleaned up PTY for terminal %s", terminalID)
+		}()
+
+		buffer := make([]byte, 1024*1024)
+		for {
+			n, err := ptmx.Read(buffer)
+			if n > 0 {
+				outputMsg := &pb.ClientUpdate{
+					Payload: &pb.ClientUpdate_PtyOutput{
+						PtyOutput: &pb.TerminalOutput{
+							TerminalId: terminalID,
+							Data:       buffer[:n],
+						},
+					},
+				}
+
+				if sendErr := stream.Send(outputMsg); sendErr != nil {
+					log.Printf("Agent: Failed to send PTY output for %s: %v", terminalID, sendErr)
+					return
+				}
+			}
+			if err != nil {
+				if err != io.EOF {
+					log.Printf("Agent: Error reading from PTY %s: %v", terminalID, err)
+				}
+				return
+			}
+		}
+	}()
+
+	creationResp := &pb.ClientUpdate{
+		Payload: &pb.ClientUpdate_TerminalCreatedResponse{
+			TerminalCreatedResponse: &pb.TerminalCreatedResponse{TerminalId: terminalID},
+		},
+	}
+	// This call is also now correct.
+	return stream.Send(creationResp)
+}
 
 func startStream(client pb.ShellSyncClient, sessionID string) error {
 	ctx, cancel := context.WithCancel(context.Background())
@@ -25,6 +100,7 @@ func startStream(client pb.ShellSyncClient, sessionID string) error {
 		return err
 	}
 	log.Println("Stream started")
+
 	initialMsg := &pb.ClientUpdate{
 		Payload: &pb.ClientUpdate_InitialMessage{
 			InitialMessage: &pb.InitialAgentMessage{SessionId: sessionID},
@@ -34,81 +110,52 @@ func startStream(client pb.ShellSyncClient, sessionID string) error {
 		return fmt.Errorf("agent: failed to send initial session ID message: %w", err)
 	}
 
-	log.Printf("Agent: Sent session ID %s to server.", sessionID)
+	agent := NewAgent()
 
-	shell := "/usr/bin/bash"
-	cmd := exec.CommandContext(ctx, shell)
-	ptmx, err := pty.Start(cmd)
-	if err != nil {
-		log.Fatalf("Agent: Failed to start PTY with shell %s: %v", shell, err)
-	}
-	defer ptmx.Close()
-	log.Printf("Agent: Local PTY started with shell: %s", shell)
-
-	////////////// // Goroutine: Read from PTY and send to Server    / ///////////////////////
-	go func() {
-		buffer := make([]byte, 1024*1024)
-		for {
-			n, err := ptmx.Read(buffer)
-			if n > 0 {
-				err := stream.Send(&pb.ClientUpdate{Payload: &pb.ClientUpdate_PtyOutput{
-					PtyOutput: buffer[:n],
-				}})
-				if err != nil {
-					log.Printf("Agent: Failed to send PTY: %v", err)
-					cancel()
-					return
-				}
-			}
-			if err != nil {
-				if err != io.EOF {
-					log.Printf("Agent: PTY->Server: Error reading from PTY: %v", err)
-
-				} else {
-					log.Println("Agent: PTY->Server: PTY closed (EOF).")
-				}
-				cancel()
-				stream.CloseSend() // Important: Notify server we're done sending
-				return
-			}
-		}
-	}()
-	///////////////////////
-	// Goroutine: Read from Server and write to PTY
-
-	go func() {
-		for {
-			msgfromserver, err := stream.Recv()
-			if err != nil {
-				if ctx.Err() != nil { // Check if context was cancelled
-					log.Println("Agent: Server->PTY: Context cancelled, stopping.")
-				} else if err == io.EOF {
-					log.Println("Agent: Server->PTY: Server closed the stream.")
-				} else {
-					log.Printf("Agent: Server->PTY: Failed to receive from server: %v", err)
-				}
-				cancel()
-				return
-			}
-
-			if inputdata := msgfromserver.GetPtyInput(); inputdata != nil {
-				if _, writeErr := ptmx.Write(inputdata); writeErr != nil {
-					log.Printf("Agent: Server->PTY: Failed to write to PTY: %v", writeErr)
-					cancel()
-					return
-				}
-			} else if serverHello := msgfromserver.GetServerHello(); serverHello != "" {
-				log.Printf("Agent: Server says: %s", serverHello)
-			}
-		}
-	}()
-	if err := cmd.Wait(); err != nil && ctx.Err() == nil {
-		log.Printf("Agent: Shell exited with error: %v", err)
+	if err := agent.spawnNewPty(ctx, stream); err != nil {
+		return fmt.Errorf("agent: failed to spawn initial terminal: %w", err)
 	}
 
-	log.Println("Agent: PTY session finished.")
+	for {
 
-	return nil
+		msgFromServer, err := stream.Recv()
+		if err != nil {
+			if ctx.Err() != nil {
+				log.Println("Agent: Context cancelled, stopping.")
+			} else if err == io.EOF {
+				log.Println("Agent: Server closed the stream.")
+			} else {
+				log.Printf("Agent: Failed to receive from server: %v", err)
+			}
+			return err
+		}
+
+		switch payload := msgFromServer.Payload.(type) {
+		case *pb.ServerUpdate_PtyInput:
+			input := payload.PtyInput
+			agent.mu.RLock()
+			ptmx, ok := agent.ptys[input.GetTerminalId()]
+			agent.mu.RUnlock()
+
+			if ok {
+				if _, writeErr := ptmx.Write(input.GetData()); writeErr != nil {
+					log.Printf("Agent: Failed to write to PTY %s: %v", input.GetTerminalId(), writeErr)
+				}
+			} else {
+				log.Printf("Agent: Received input for unknown terminal ID: %s", input.GetTerminalId())
+			}
+
+		case *pb.ServerUpdate_CreateTerminalRequest:
+			log.Println("Agent: Received request to create a new terminal.")
+
+			if err := agent.spawnNewPty(ctx, stream); err != nil {
+				log.Printf("Agent: Failed to spawn new terminal on request: %v", err)
+			}
+
+		case *pb.ServerUpdate_ServerHello:
+			log.Printf("Agent: Server says: %s", payload.ServerHello)
+		}
+	}
 }
 
 func Start(host string, port int) {
@@ -121,7 +168,6 @@ func Start(host string, port int) {
 
 	client := pb.NewShellSyncClient(conn)
 
-	// Create the agent's identifier string
 	var agentName string
 	username, err := user.Current()
 	if err != nil {
@@ -131,7 +177,6 @@ func Start(host string, port int) {
 		agentName = fmt.Sprintf("%s@%s", username.Username, strings.SplitN(hostname, ".", 2)[0])
 	}
 
-	// 1. Create the session and get the session ID
 	resp, err := client.CreateSession(context.Background(), &pb.CreateRequest{
 		Host: agentName,
 	})
@@ -141,7 +186,6 @@ func Start(host string, port int) {
 	log.Printf("Session %s created successfully.", resp.GetSessionId())
 	fmt.Printf("\nShare this URL:\n  ► %s ◄\n\n", resp.GetFrontendUrl())
 
-	// 2. Start the stream, passing the session ID to be sent
 	if err := startStream(client, resp.GetSessionId()); err != nil {
 		log.Fatalf("Stream failed: %v", err)
 	}

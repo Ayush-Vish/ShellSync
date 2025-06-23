@@ -20,6 +20,7 @@ Shellsync is a collaborative terminal-sharing application. The Go server manages
 - [ ] Make a gesture Engine to pan and Zoom infinite canvas.
 - [ ] Create a Toolbar to spawn a new pty client and in the canvas.
 - [ ] Create functionality to spawn multiple pyt in the same client.
+- 
 
 ## Challenges Faced.
  

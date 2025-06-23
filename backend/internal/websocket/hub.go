@@ -1,11 +1,12 @@
 package websocket
 
 import (
-	"github.com/Ayush-Vish/shellsync/backend/internal/types"
+	"encoding/json"
 	"log"
 	"net/http"
 	"sync"
 
+	"github.com/Ayush-Vish/shellsync/backend/internal/types"
 	"github.com/gorilla/websocket"
 )
 
@@ -15,11 +16,12 @@ var upgrader = websocket.Upgrader{
 
 type Hub struct {
 	service  types.PTYService
-	clients  map[string]*websocket.Conn // Maps clientID -> connection
-	sessions map[string]map[string]bool // Maps sessionID -> set of clientIDs
-	mu       sync.RWMutex               // Protects clients and sessions maps
+	clients  map[string]*websocket.Conn
+	sessions map[string]map[string]bool
+	mu       sync.RWMutex
 }
 
+// NewHub creates a new Hub instance.
 func NewHub(service types.PTYService) *Hub {
 	return &Hub{
 		service:  service,
@@ -37,18 +39,15 @@ func (h *Hub) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "session_id and client_id are required", http.StatusBadRequest)
 		return
 	}
-	// Verify session exists
+
+	h.ensureSessionExists(sessionID)
+
 	if _, exists := h.service.GetSession(sessionID); !exists {
-		log.Printf("Invalid session ID: %s", sessionID)
-		http.Error(w, "Invalid session", http.StatusBadRequest)
-		return
+		log.Printf("Attempt to connect to non-existent session ID: %s", sessionID)
+		h.service.AddClientToSession(sessionID, "host")
 	}
 
 	conn, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		log.Printf("WebSocket upgrade failed for Client %s: %v", clientID, err)
-		return
-	}
 	if err != nil {
 		log.Printf("WebSocket upgrade failed for Client %s: %v", clientID, err)
 		return
@@ -57,6 +56,17 @@ func (h *Hub) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 	h.registerClient(conn, sessionID, clientID)
 	go h.readLoop(conn, sessionID, clientID)
 }
+
+func (h *Hub) ensureSessionExists(sessionID string) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	if h.sessions[sessionID] == nil {
+		h.sessions[sessionID] = make(map[string]bool)
+		log.Printf("Created session %s in WebSocket hub", sessionID)
+	}
+}
+
 func (h *Hub) registerClient(conn *websocket.Conn, sessionID, clientID string) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -66,14 +76,17 @@ func (h *Hub) registerClient(conn *websocket.Conn, sessionID, clientID string) {
 		h.sessions[sessionID] = make(map[string]bool)
 	}
 	h.sessions[sessionID][clientID] = true
+
 	h.service.AddClientToSession(sessionID, clientID)
 	log.Printf("Client %s registered to session %s", clientID, sessionID)
 }
+
 func (h *Hub) unregisterClient(clientID, sessionID string) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	if _, ok := h.clients[clientID]; ok {
+	if conn, ok := h.clients[clientID]; ok {
+		conn.Close()
 		delete(h.clients, clientID)
 		if h.sessions[sessionID] != nil {
 			delete(h.sessions[sessionID], clientID)
@@ -85,44 +98,138 @@ func (h *Hub) unregisterClient(clientID, sessionID string) {
 	}
 }
 
+func normalizeMessage(msg types.Message) map[string]interface{} {
+	result := map[string]interface{}{
+		"type":    msg.Type,
+		"content": msg.Content,
+		"sender":  msg.Sender,
+	}
+
+	// Convert snake_case to camelCase for frontend
+	if msg.TerminalID != "" {
+		result["terminalId"] = msg.TerminalID // Frontend expects camelCase
+	}
+	if msg.FrontendID != "" {
+		result["frontendId"] = msg.FrontendID // Frontend expects camelCase
+	}
+
+	return result
+}
+
 func (h *Hub) readLoop(conn *websocket.Conn, sessionID, clientID string) {
 	defer func() {
 		h.unregisterClient(clientID, sessionID)
-		conn.Close()
 	}()
 
 	for {
-		var msg types.Message
-		if err := conn.ReadJSON(&msg); err != nil {
+
+		var rawMsg map[string]interface{}
+		if err := conn.ReadJSON(&rawMsg); err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
 				log.Printf("Error reading from client %s: %v", clientID, err)
 			}
 			break
 		}
-		if msg.Type == "pty_input" {
-			h.processPtyInput(sessionID, clientID, msg.Content)
+
+		msg := types.Message{
+			Type:    getString(rawMsg, "type"),
+			Content: getString(rawMsg, "content"),
+			Sender:  clientID, // Always set sender to clientID
+		}
+
+		if terminalId := getString(rawMsg, "terminalId"); terminalId != "" {
+			msg.TerminalID = terminalId
+		} else if terminalId := getString(rawMsg, "terminal_id"); terminalId != "" {
+			msg.TerminalID = terminalId
+		}
+
+		if frontendId := getString(rawMsg, "frontendId"); frontendId != "" {
+			msg.FrontendID = frontendId
+		} else if frontendId := getString(rawMsg, "frontend_id"); frontendId != "" {
+			msg.FrontendID = frontendId
+		}
+
+		log.Printf("Received message from client %s: Type=%s, TerminalID=%s, Content=%s",
+			clientID, msg.Type, msg.TerminalID, msg.Content)
+
+		switch msg.Type {
+		case "pty_input":
+			if msg.TerminalID == "" {
+				log.Printf("Received pty_input without terminal_id from client %s", clientID)
+				continue
+			}
+			log.Printf("Forwarding pty_input to agent: TerminalID=%s, Content=%s", msg.TerminalID, msg.Content)
+			h.service.ForwardInputToAgent(sessionID, msg.TerminalID, []byte(msg.Content))
+
+		case "create_terminal":
+
+			var payload struct {
+				FrontendID string `json:"frontendId"`
+			}
+
+			if err := json.Unmarshal([]byte(msg.Content), &payload); err != nil {
+				log.Printf("Error unmarshalling create_terminal payload from client %s: %v", clientID, err)
+				continue
+			}
+
+			if payload.FrontendID == "" {
+				log.Printf("Received create_terminal from client %s without a frontendId", clientID)
+				continue
+			}
+
+			log.Printf("Client %s requested a new terminal for session %s with FrontendID %s", clientID, sessionID, payload.FrontendID)
+			// Pass the frontendID to the service layer.
+			h.service.RequestNewTerminal(sessionID, payload.FrontendID)
+
+		default:
+			log.Printf("Received unknown message type '%s' from client %s", msg.Type, clientID)
 		}
 	}
 }
-func (h *Hub) processPtyInput(sessionID, senderClientID, content string) {
-	log.Printf("Processing pty_input for session %s from sender %s", sessionID, senderClientID)
-	h.service.ForwardInputToAgent(sessionID, []byte(content))
+
+// Helper function to safely get string values from map
+func getString(m map[string]interface{}, key string) string {
+	if val, ok := m[key]; ok {
+		if str, ok := val.(string); ok {
+			return str
+		}
+	}
+	return ""
 }
+
+// BroadcastToSession sends a message to all clients in a given session.
 func (h *Hub) BroadcastToSession(sessionID string, message types.Message) {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 
 	sessionClients, ok := h.sessions[sessionID]
 	if !ok {
-		return
+		log.Printf("Attempted to broadcast to non-existent session: %s. Creating session now.", sessionID)
+		// Create the session on-the-fly
+		h.mu.RUnlock()
+		h.ensureSessionExists(sessionID)
+		h.mu.RLock()
+		sessionClients, ok = h.sessions[sessionID]
+		if !ok {
+			log.Printf("Failed to create session %s", sessionID)
+			return
+		}
 	}
+
+	// Normalize message for frontend compatibility
+	normalizedMsg := normalizeMessage(message)
+
+	log.Printf("Broadcasting to session %s: %+v", sessionID, normalizedMsg)
 
 	for clientID := range sessionClients {
 		conn, clientOk := h.clients[clientID]
 		if clientOk {
-			if err := conn.WriteJSON(message); err != nil {
-				log.Printf("Error writing message to client %s: %v", clientID, err)
-			}
+			// It's safer to write to each client in its own goroutine to avoid blocking.
+			go func(c *websocket.Conn, cID string) {
+				if err := c.WriteJSON(normalizedMsg); err != nil {
+					log.Printf("Error writing message to client %s: %v", cID, err)
+				}
+			}(conn, clientID)
 		}
 	}
 }

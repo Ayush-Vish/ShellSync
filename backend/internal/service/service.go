@@ -3,7 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
-	"github.com/Ayush-Vish/shellsync/backend/internal/websocket"
+	"math/rand"
 
 	"io"
 	"log"
@@ -25,7 +25,7 @@ type ShellSyncService struct {
 	pb.UnimplementedShellSyncServer
 	sessions map[string]*types.Session
 	mu       sync.RWMutex
-	hub      PtyOutputBroadcaster // Reference to the WebSocket hub
+	hub      types.PtyOutputBroadcaster
 }
 
 func NewShellSyncService() *ShellSyncService {
@@ -33,7 +33,8 @@ func NewShellSyncService() *ShellSyncService {
 		sessions: make(map[string]*types.Session),
 	}
 }
-func (s *ShellSyncService) SetHub(hub *websocket.Hub) {
+
+func (s *ShellSyncService) SetHub(hub types.PtyOutputBroadcaster) {
 	s.hub = hub
 }
 func (s *ShellSyncService) CreateSession(ctx context.Context, req *pb.CreateRequest) (*pb.CreateResponse, error) {
@@ -45,8 +46,9 @@ func (s *ShellSyncService) CreateSession(ctx context.Context, req *pb.CreateRequ
 		ID:             sessionID,
 		Host:           req.Host,
 		Clients:        make(map[string]*types.Client),
+		Terminals:      make(map[string]*types.Terminal),
 		CreatedAt:      time.Now(),
-		AgentInputChan: make(chan []byte, 20), // Buffered channel for commands
+		AgentInputChan: make(chan types.AgentCommand, 20), // Use the new interface type
 	}
 	s.sessions[sessionID] = session
 
@@ -68,13 +70,7 @@ func (s *ShellSyncService) Stream(stream pb.ShellSync_StreamServer) error {
 		log.Printf("Failed to receive initial message from agent: %v", err)
 		return err
 	}
-
-	// Check the payload for the initial message
-	initPayload := initialMsg.GetInitialMessage()
-	if initPayload == nil {
-		return fmt.Errorf("agent's first message was not InitialAgentMessage")
-	}
-	sessionID := initPayload.GetSessionId()
+	sessionID := initialMsg.GetInitialMessage().GetSessionId()
 
 	// 2. Find the session and its command channel.
 	s.mu.RLock()
@@ -85,51 +81,78 @@ func (s *ShellSyncService) Stream(stream pb.ShellSync_StreamServer) error {
 	}
 	log.Printf("Agent successfully associated with session %s", sessionID)
 
-	// Goroutine => forward PTY output from Agent -> WebSocket Hub
+	// Goroutine: Read messages from Agent and dispatch them.
 	go func() {
 		for {
 			msgFromAgent, err := stream.Recv()
 			if err != nil {
 				if err != io.EOF {
-					log.Printf("Error receiving PTY output from agent for session %s: %v", sessionID, err)
+					log.Printf("Error receiving from agent for session %s: %v", sessionID, err)
 				}
 				return // Stop on any error
 			}
-			if outputData := msgFromAgent.GetPtyOutput(); outputData != nil {
+
+			// Demultiplex agent messages
+			switch payload := msgFromAgent.Payload.(type) {
+			case *pb.ClientUpdate_PtyOutput:
+				output := payload.PtyOutput
 				if s.hub != nil {
-					// Broadcast the output to all frontend clients in the session.
 					message := types.Message{
-						Type:    "pty_output",
-						Content: string(outputData),
-						Sender:  "pty_agent",
+						Type:       "pty_output",
+						TerminalID: output.GetTerminalId(),
+						Content:    string(output.GetData()),
+						Sender:     "pty_agent",
 					}
 					s.hub.BroadcastToSession(sessionID, message)
 				}
+			case *pb.ClientUpdate_TerminalCreatedResponse:
+				resp := payload.TerminalCreatedResponse
+				log.Printf("Session [%s]: Agent confirmed creation of terminal [%s]", sessionID, resp.GetTerminalId())
+				// Add terminal to session state
+				session.Mu.Lock()
+				session.Terminals[resp.GetTerminalId()] = &types.Terminal{ID: resp.GetTerminalId(), CreatedAt: time.Now()}
+				session.Mu.Unlock()
+				// Notify frontend
+				message := types.Message{Type: "terminal_created", TerminalID: resp.GetTerminalId()}
+				s.hub.BroadcastToSession(sessionID, message)
 			}
 		}
 	}()
 
-	// Goroutine => forward commands from WebSocket Hub -> Agent
+	// Goroutine: Read commands from Hub and forward to Agent.
 	for {
 		select {
 		case <-ctx.Done():
 			log.Printf("Agent for session %s disconnected.", sessionID)
-			close(session.AgentInputChan) // Clean up the channel
+			close(session.AgentInputChan)
 			return ctx.Err()
-		case inputData := <-session.AgentInputChan:
-			err := stream.Send(&pb.ServerUpdate{
-				Payload: &pb.ServerUpdate_PtyInput{PtyInput: inputData},
-			})
-			if err != nil {
-				log.Printf("Error sending input to agent for session %s: %v", sessionID, err)
+		case command := <-session.AgentInputChan:
+			var serverUpdate *pb.ServerUpdate
+			// Multiplex server commands
+			switch cmd := command.(type) {
+			case types.PtyInputData:
+				serverUpdate = &pb.ServerUpdate{
+					Payload: &pb.ServerUpdate_PtyInput{
+						PtyInput: &pb.TerminalInput{TerminalId: cmd.TerminalID, Data: cmd.Data},
+					},
+				}
+			case types.CreateTerminalCmd:
+				serverUpdate = &pb.ServerUpdate{
+					Payload: &pb.ServerUpdate_CreateTerminalRequest{
+						CreateTerminalRequest: &pb.CreateTerminalRequest{},
+					},
+				}
+			}
+
+			if err := stream.Send(serverUpdate); err != nil {
+				log.Printf("Error sending command to agent for session %s: %v", sessionID, err)
 				return err
 			}
 		}
 	}
 }
 
-// ForwardInputToAgent is called by the Hub.
-func (s *ShellSyncService) ForwardInputToAgent(sessionID string, input []byte) {
+func (s *ShellSyncService) ForwardInputToAgent(sessionID, terminalID string, input []byte) {
 	s.mu.RLock()
 	session, exists := s.sessions[sessionID]
 	s.mu.RUnlock()
@@ -138,12 +161,60 @@ func (s *ShellSyncService) ForwardInputToAgent(sessionID string, input []byte) {
 		return
 	}
 	select {
-	case session.AgentInputChan <- input:
+	case session.AgentInputChan <- types.PtyInputData{TerminalID: terminalID, Data: input}:
 	default:
 		log.Printf("Agent input channel for session %s is full. Input dropped.", sessionID)
 	}
 }
 
+func (s *ShellSyncService) RequestNewTerminal(sessionID, frontendID string) {
+	s.mu.RLock()
+	session, ok := s.sessions[sessionID]
+	s.mu.RUnlock()
+
+	if !ok {
+		log.Printf("Service error: cannot create terminal for non-existent session %s", sessionID)
+
+		if s.hub != nil {
+			errorMsg := types.Message{
+				Type:       "terminal_error",
+				FrontendID: frontendID,
+				Error:      "Session not found",
+				Sender:     "pty_agent",
+			}
+			s.hub.BroadcastToSession(sessionID, errorMsg)
+		}
+		return
+	}
+
+	go func() {
+		log.Printf("Simulating terminal creation for session %s (FrontendID: %s)...", sessionID, frontendID)
+
+		time.Sleep(100 * time.Millisecond)
+
+		backendTerminalID := fmt.Sprintf("term-%x", rand.Intn(0xffffff))
+
+		message := types.Message{
+			Type:       "terminal_created",
+			TerminalID: backendTerminalID,
+			FrontendID: frontendID,
+			Sender:     "pty_agent",
+		}
+
+		session.Mu.Lock()
+		if session.Terminals == nil {
+			session.Terminals = make(map[string]*types.Terminal)
+		}
+		session.Terminals[backendTerminalID] = &types.Terminal{ID: backendTerminalID, CreatedAt: time.Now()}
+		session.Mu.Unlock()
+
+		log.Printf("Terminal created. Broadcasting confirmation. BackendID: %s, FrontendID: %s", backendTerminalID, frontendID)
+
+		if s.hub != nil {
+			s.hub.BroadcastToSession(sessionID, message)
+		}
+	}()
+}
 func (s *ShellSyncService) GetSession(sessionID string) (*types.Session, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -151,6 +222,7 @@ func (s *ShellSyncService) GetSession(sessionID string) (*types.Session, bool) {
 	return session, exists
 }
 func (s *ShellSyncService) AddClientToSession(sessionID, clientID string) bool {
+
 	return true
 }
 func (s *ShellSyncService) GetSessions() []*types.Session {
