@@ -19,13 +19,12 @@ import (
 )
 
 func main() {
-	// Initialize services
+
 	shellService := service.NewShellSyncService()
 	wsHub := websocket.NewHub(shellService)
 
 	shellService.SetHub(wsHub)
 
-	// Setup gRPC server
 	grpcServer := grpc.NewServer()
 	pb.RegisterShellSyncServer(grpcServer, shellService)
 
@@ -40,12 +39,10 @@ func main() {
 		}
 	}()
 
-	// --- HTTP Server Setup ---
 	r := mux.NewRouter()
 	r.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("ShellSync Backend is Running!"))
 	})
-	// Endpoint for frontend to get a list of active sessions
 	r.HandleFunc("/s", func(w http.ResponseWriter, r *http.Request) {
 		sessions := shellService.GetSessions()
 		w.Header().Set("Content-Type", "application/json")
@@ -55,7 +52,6 @@ func main() {
 		}
 	})
 
-	// Add the WebSocket route handler
 	r.HandleFunc("/ws", wsHub.HandleWebSocket)
 
 	httpServer := &http.Server{
@@ -70,7 +66,6 @@ func main() {
 		}
 	}()
 
-	// --- Graceful Shutdown ---
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 	<-sigs

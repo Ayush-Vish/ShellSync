@@ -1,6 +1,6 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 
-// In hooks/useSocket.ts or wherever SocketMessage is defined
+
 export interface SocketMessage {
     type: 'terminal_created' | 'pty_output' | 'pty_input' | 'create_terminal' | 'terminal_error';
     content?: string;
@@ -17,13 +17,13 @@ export interface TerminalInfo {
   error?: string;
 }
 
-// Helper function to normalize backend messages to frontend format
+
 function normalizeMessage(data: any): SocketMessage {
   return {
     type: data.type,
     content: data.content,
-    terminalId: data.terminalId || data.terminal_id, // Handle both formats
-    frontendId: data.frontendId || data.frontend_id, // Handle both formats
+    terminalId: data.terminalId || data.terminal_id, 
+    frontendId: data.frontendId || data.frontend_id, 
     error: data.error,
     sender: data.sender,
   };
@@ -42,9 +42,9 @@ export function useTerminalSocket(
   const [connectionAttempts, setConnectionAttempts] = useState(0);
   const [terminals, setTerminals] = useState<Map<string, TerminalInfo>>(new Map());
 
-  // Function to establish or re-establish the WebSocket connection
+
   const connect = useCallback(() => {
-    // Prevent reconnecting if already connected or connecting
+
     if (wsRef.current && wsRef.current.readyState !== WebSocket.CLOSED) {
       return;
     }
@@ -60,7 +60,7 @@ export function useTerminalSocket(
         setIsConnected(true);
         setConnectionAttempts(0);
 
-        // Clear any pending reconnection timeouts upon successful connection
+
         if (reconnectTimeoutRef.current) {
           clearTimeout(reconnectTimeoutRef.current);
           reconnectTimeoutRef.current = null;
@@ -76,36 +76,18 @@ export function useTerminalSocket(
           const data: SocketMessage = normalizeMessage(rawData);
           console.log('Normalized WebSocket message:', data);
           
-          // Handle terminal creation response
+
           if (data.type === 'terminal_created' && data.terminalId) {
-            setTerminals(prev => {
-              const updated = new Map(prev);
-              const existing = updated.get(data.terminalId!);
-              if (existing) {
-                updated.set(data.terminalId!, {
-                  ...existing,
-                  status: 'ready',
-                  createdAt: new Date()
-                });
-              } else {
-                // Terminal created from another client or restored session
-                updated.set(data.terminalId!, {
-                  id: data.terminalId!,
-                  status: 'ready',
-                  createdAt: new Date()
-                });
-              }
-              return updated;
-            });
             onTerminalCreated?.(data.terminalId);
           }
-          
-          // Handle error messages
+
+
+
           if (data.type === 'terminal_error') {
             console.error('WebSocket error message:', data.error);
             onError?.(data.error || 'Unknown error');
             
-            // If error is related to a specific terminal, update its status
+
             if (data.terminalId) {
               setTerminals(prev => {
                 const updated = new Map(prev);
@@ -122,7 +104,7 @@ export function useTerminalSocket(
             }
           }
           
-          onMessage(data); // Pass the normalized message to the provided callback
+          onMessage(data); 
         } catch (error) {
           console.error('Failed to parse incoming WebSocket message:', event.data, error);
         }
@@ -137,7 +119,7 @@ export function useTerminalSocket(
         console.warn(`WebSocket closed. Code: ${event.code}. Reason: ${event.reason || 'No reason'}.`);
         setIsConnected(false);
 
-        // Only attempt to reconnect if it wasn't a manual close and we haven't exceeded max attempts
+
         if (event.code !== 1000 && connectionAttempts < 10) {
           console.log(`Reconnecting in 3s... (attempt ${connectionAttempts + 1}/10)`);
           setConnectionAttempts(prev => prev + 1);
@@ -163,7 +145,7 @@ export function useTerminalSocket(
     }
   }, [sessionId, clientId, onMessage, onTerminalCreated, onError, connectionAttempts]);
 
-  // Effect hook to manage connection lifecycle
+
   useEffect(() => {
     if (sessionId && clientId) {
       connect();
@@ -183,7 +165,7 @@ export function useTerminalSocket(
     };
   }, [sessionId, clientId, connect]);
 
-  // Function to send messages over the WebSocket
+
   const sendMessage = useCallback((type: SocketMessage['type'], content?: string, terminalId?: string) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       const message: SocketMessage = {
@@ -209,11 +191,11 @@ export function useTerminalSocket(
     }
   }, [clientId, connect]);
 
-  // Function to create a new terminal
+
   const createTerminal = useCallback(() => {
     const tempId = `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
-    // Add temporary terminal to state
+
     setTerminals(prev => {
       const updated = new Map(prev);
       updated.set(tempId, {
@@ -223,11 +205,11 @@ export function useTerminalSocket(
       return updated;
     });
 
-    // Send create terminal request
+
     const success = sendMessage('create_terminal');
     
     if (!success) {
-      // Remove temporary terminal if message failed to send
+
       setTerminals(prev => {
         const updated = new Map(prev);
         updated.delete(tempId);
@@ -239,12 +221,12 @@ export function useTerminalSocket(
     return tempId;
   }, [sendMessage]);
 
-  // Function to get terminal info
+
   const getTerminalInfo = useCallback((terminalId: string) => {
     return terminals.get(terminalId);
   }, [terminals]);
 
-  // Function to remove terminal from local state
+
   const removeTerminal = useCallback((terminalId: string) => {
     setTerminals(prev => {
       const updated = new Map(prev);
@@ -253,7 +235,7 @@ export function useTerminalSocket(
     });
   }, []);
 
-  // Manual reconnect function
+
   const reconnect = useCallback(() => {
     if (wsRef.current) {
       wsRef.current.close();

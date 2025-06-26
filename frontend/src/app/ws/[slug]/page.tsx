@@ -8,15 +8,15 @@ import { useParams, useSearchParams } from "next/navigation";
 import { useTerminalSocket, SocketMessage } from "@/hooks/useSocket";
 
 export interface CanvasItem {
-    id: string; // This is the frontend-specific ID
+    id: string; 
     position: { x: number; y: number };
     color: string;
-    terminalId?: string; // This is the backend-specific ID
+    terminalId?: string; 
     status: 'creating' | 'ready' | 'error';
     error?: string;
 }
 
-// ... Toolbar component is unchanged ...
+
 const Toolbar = ({ 
     onAddItem, 
     onReset, 
@@ -59,7 +59,7 @@ const Toolbar = ({
 export default function CanvasPage() {
     const [items, setItems] = useState<CanvasItem[]>([]);
     const [isCreatingTerminal, setIsCreatingTerminal] = useState(false);
-    // NEW: State to hold the last message received from the socket
+
     const [latestMessage, setLatestMessage] = useState<SocketMessage | null>(null);
     const canvasRef = useRef<CanvasRef>(null);
     
@@ -70,10 +70,9 @@ export default function CanvasPage() {
         searchParams.get('client_id') || `client_${Math.random().toString(36).substr(2, 9)}`
     );
 
-    // This is now the single source of truth for handling ALL messages.
     const handleSocketMessage = useCallback((message: SocketMessage) => {
         console.log('Canvas received socket message:', message);
-        setLatestMessage(message); // Update state to trigger re-render in children
+        setLatestMessage(message); 
         
         if (message.type === 'terminal_created' && message.terminalId && message.frontendId) {
             setItems(prevItems =>
@@ -88,8 +87,7 @@ export default function CanvasPage() {
                     return item;
                 })
             );
-            // This logic might need to be more robust if multiple creations can happen
-            // For now, we'll assume it's okay to set this to false on any successful creation.
+            
             setIsCreatingTerminal(false);
         }
         if (message.type === 'terminal_error' && message.frontendId) {
@@ -108,26 +106,14 @@ export default function CanvasPage() {
         console.log('Terminal created with ID:', terminalId);
     }, []);
 
-    // const handleError = useCallback((error: string) => {
-    //     console.error('Terminal creation error:', error);
-    //     setIsCreatingTerminal(false);
-        
-    //     setItems(prevItems => 
-    //         prevItems.map(item => 
-    //             item.status === 'creating' && !item.terminalId 
-    //                 ? { ...item, status: 'error' as const, error }
-    //                 : item
-    //         )
-    //     );
-    // }, []);
+   
     const handleError = useCallback((error: string) => {
         console.error('Terminal creation error:', error);
-        // This general error handler is now less important, as specific errors are handled above.
-        // You might use it for connection errors instead.
+      
         setIsCreatingTerminal(false);
     }, []);
 
-    // This is now the ONLY call to useTerminalSocket
+   
      const { 
         sendMessage,
         isConnected,
@@ -153,12 +139,12 @@ export default function CanvasPage() {
         
         setItems(prevItems => [...prevItems, newItem]);
         
-        // This now just sends a message, doesn't manage a terminal state locally
+
                 const payload = { frontendId };
 
         sendMessage('create_terminal', JSON.stringify(payload)); 
 
-    }, [isConnected, isCreatingTerminal, sendMessage]); // Use sendMessage from the hook
+    }, [isConnected, isCreatingTerminal, sendMessage]); 
 
     const handleResetView = useCallback(() => {
         canvasRef.current?.resetView();
@@ -194,7 +180,6 @@ export default function CanvasPage() {
                         onRemove={handleRemoveItem}
                         sessionId={sessionId}
                         clientId={clientId}
-                        // Pass the required props down
                         sendMessage={sendMessage}
                         latestMessage={latestMessage}
                     />

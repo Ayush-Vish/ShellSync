@@ -20,39 +20,53 @@ import (
 )
 
 type Agent struct {
-	ptys map[string]*os.File
-	mu   sync.RWMutex
+	ptys        map[string]*os.File
+	terminalMap map[string]string   
+	mu          sync.RWMutex
 }
 
 func NewAgent() *Agent {
 	return &Agent{
-		ptys: make(map[string]*os.File),
+		ptys:        make(map[string]*os.File),
+		terminalMap: make(map[string]string),
 	}
 }
 
-func (a *Agent) spawnNewPty(ctx context.Context, stream pb.ShellSync_StreamClient) error {
-	terminalID := "term-" + uuid.New().String()[:8]
-	shell := "/bin/bash"
-	cmd := exec.CommandContext(ctx, shell)
+func (a *Agent) spawnNewPty(ctx context.Context, stream pb.ShellSync_StreamClient, backendID string) error {
+	localID := "term-" + uuid.New().String()[:8]
+	cmd := exec.CommandContext(ctx, "/bin/bash")
 
 	ptmx, err := pty.Start(cmd)
 	if err != nil {
-		log.Printf("Agent: Failed to start PTY for new terminal %s: %v", terminalID, err)
+		log.Printf("Agent: Failed to start PTY for terminal %s: %v", backendID, err)
+		errorMsg := &pb.ClientUpdate{
+			Payload: &pb.ClientUpdate_TerminalError{
+				TerminalError: &pb.TerminalError{
+					TerminalId: backendID,
+					Error:      err.Error(),
+				},
+			},
+		}
+		if sendErr := stream.Send(errorMsg); sendErr != nil {
+			log.Printf("Agent: Failed to send terminal error for %s: %v", backendID, sendErr)
+		}
 		return err
 	}
-	log.Printf("Agent: New PTY started with ID: %s", terminalID)
+	log.Printf("Agent: New PTY started with ID: %s (maps to backend ID: %s)", localID, backendID)
 
 	a.mu.Lock()
-	a.ptys[terminalID] = ptmx
+	a.ptys[localID] = ptmx
+	a.terminalMap[backendID] = localID
 	a.mu.Unlock()
 
 	go func() {
 		defer func() {
 			a.mu.Lock()
 			ptmx.Close()
-			delete(a.ptys, terminalID)
+			delete(a.ptys, localID)
+			delete(a.terminalMap, backendID)
 			a.mu.Unlock()
-			log.Printf("Agent: Cleaned up PTY for terminal %s", terminalID)
+			log.Printf("Agent: Cleaned up PTY for terminal %s (backend ID %s)", localID, backendID)
 		}()
 
 		buffer := make([]byte, 1024*1024)
@@ -62,20 +76,19 @@ func (a *Agent) spawnNewPty(ctx context.Context, stream pb.ShellSync_StreamClien
 				outputMsg := &pb.ClientUpdate{
 					Payload: &pb.ClientUpdate_PtyOutput{
 						PtyOutput: &pb.TerminalOutput{
-							TerminalId: terminalID,
+							TerminalId: backendID,
 							Data:       buffer[:n],
 						},
 					},
 				}
-
 				if sendErr := stream.Send(outputMsg); sendErr != nil {
-					log.Printf("Agent: Failed to send PTY output for %s: %v", terminalID, sendErr)
+					log.Printf("Agent: Failed to send PTY output for %s: %v", backendID, sendErr)
 					return
 				}
 			}
 			if err != nil {
 				if err != io.EOF {
-					log.Printf("Agent: Error reading from PTY %s: %v", terminalID, err)
+					log.Printf("Agent: Error reading from PTY %s: %v", backendID, err)
 				}
 				return
 			}
@@ -84,10 +97,9 @@ func (a *Agent) spawnNewPty(ctx context.Context, stream pb.ShellSync_StreamClien
 
 	creationResp := &pb.ClientUpdate{
 		Payload: &pb.ClientUpdate_TerminalCreatedResponse{
-			TerminalCreatedResponse: &pb.TerminalCreatedResponse{TerminalId: terminalID},
+			TerminalCreatedResponse: &pb.TerminalCreatedResponse{TerminalId: backendID},
 		},
 	}
-	// This call is also now correct.
 	return stream.Send(creationResp)
 }
 
@@ -112,12 +124,13 @@ func startStream(client pb.ShellSyncClient, sessionID string) error {
 
 	agent := NewAgent()
 
-	if err := agent.spawnNewPty(ctx, stream); err != nil {
+
+	defaultBackendID := "term-" + uuid.New().String()[:8]
+	if err := agent.spawnNewPty(ctx, stream, defaultBackendID); err != nil {
 		return fmt.Errorf("agent: failed to spawn initial terminal: %w", err)
 	}
 
 	for {
-
 		msgFromServer, err := stream.Recv()
 		if err != nil {
 			if ctx.Err() != nil {
@@ -134,22 +147,26 @@ func startStream(client pb.ShellSyncClient, sessionID string) error {
 		case *pb.ServerUpdate_PtyInput:
 			input := payload.PtyInput
 			agent.mu.RLock()
-			ptmx, ok := agent.ptys[input.GetTerminalId()]
+			localID, found := agent.terminalMap[input.GetTerminalId()]
+			ptmx, ok := agent.ptys[localID]
 			agent.mu.RUnlock()
 
-			if ok {
+			if found && ok {
 				if _, writeErr := ptmx.Write(input.GetData()); writeErr != nil {
-					log.Printf("Agent: Failed to write to PTY %s: %v", input.GetTerminalId(), writeErr)
+					log.Printf("Agent: Failed to write to PTY %s (backend ID %s): %v", localID, input.GetTerminalId(), writeErr)
 				}
 			} else {
 				log.Printf("Agent: Received input for unknown terminal ID: %s", input.GetTerminalId())
 			}
 
 		case *pb.ServerUpdate_CreateTerminalRequest:
-			log.Println("Agent: Received request to create a new terminal.")
-
-			if err := agent.spawnNewPty(ctx, stream); err != nil {
-				log.Printf("Agent: Failed to spawn new terminal on request: %v", err)
+			backendID := payload.CreateTerminalRequest.GetTerminalId()
+			if backendID == "" {
+				backendID = "term-" + uuid.New().String()[:8]
+			}
+			log.Printf("Agent: Received request to create terminal with backend ID: %s", backendID)
+			if err := agent.spawnNewPty(ctx, stream, backendID); err != nil {
+				log.Printf("Agent: Failed to spawn new terminal: %v", err)
 			}
 
 		case *pb.ServerUpdate_ServerHello:

@@ -125,6 +125,7 @@ type ClientUpdate struct {
 	//	*ClientUpdate_InitialMessage
 	//	*ClientUpdate_PtyOutput
 	//	*ClientUpdate_TerminalCreatedResponse
+	//	*ClientUpdate_TerminalError
 	Payload       isClientUpdate_Payload `protobuf_oneof:"payload"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -194,6 +195,15 @@ func (x *ClientUpdate) GetTerminalCreatedResponse() *TerminalCreatedResponse {
 	return nil
 }
 
+func (x *ClientUpdate) GetTerminalError() *TerminalError {
+	if x != nil {
+		if x, ok := x.Payload.(*ClientUpdate_TerminalError); ok {
+			return x.TerminalError
+		}
+	}
+	return nil
+}
+
 type isClientUpdate_Payload interface {
 	isClientUpdate_Payload()
 }
@@ -210,11 +220,69 @@ type ClientUpdate_TerminalCreatedResponse struct {
 	TerminalCreatedResponse *TerminalCreatedResponse `protobuf:"bytes,3,opt,name=terminal_created_response,json=terminalCreatedResponse,proto3,oneof"` // Agent confirms terminal creation
 }
 
+type ClientUpdate_TerminalError struct {
+	TerminalError *TerminalError `protobuf:"bytes,4,opt,name=terminal_error,json=terminalError,proto3,oneof"`
+}
+
 func (*ClientUpdate_InitialMessage) isClientUpdate_Payload() {}
 
 func (*ClientUpdate_PtyOutput) isClientUpdate_Payload() {}
 
 func (*ClientUpdate_TerminalCreatedResponse) isClientUpdate_Payload() {}
+
+func (*ClientUpdate_TerminalError) isClientUpdate_Payload() {}
+
+type TerminalError struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	TerminalId    string                 `protobuf:"bytes,1,opt,name=terminal_id,json=terminalId,proto3" json:"terminal_id,omitempty"`
+	Error         string                 `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TerminalError) Reset() {
+	*x = TerminalError{}
+	mi := &file_api_proto_shellsync_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TerminalError) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TerminalError) ProtoMessage() {}
+
+func (x *TerminalError) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_shellsync_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TerminalError.ProtoReflect.Descriptor instead.
+func (*TerminalError) Descriptor() ([]byte, []int) {
+	return file_api_proto_shellsync_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *TerminalError) GetTerminalId() string {
+	if x != nil {
+		return x.TerminalId
+	}
+	return ""
+}
+
+func (x *TerminalError) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
 
 type InitialAgentMessage struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -225,7 +293,7 @@ type InitialAgentMessage struct {
 
 func (x *InitialAgentMessage) Reset() {
 	*x = InitialAgentMessage{}
-	mi := &file_api_proto_shellsync_proto_msgTypes[3]
+	mi := &file_api_proto_shellsync_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -237,7 +305,7 @@ func (x *InitialAgentMessage) String() string {
 func (*InitialAgentMessage) ProtoMessage() {}
 
 func (x *InitialAgentMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_shellsync_proto_msgTypes[3]
+	mi := &file_api_proto_shellsync_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -250,7 +318,7 @@ func (x *InitialAgentMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InitialAgentMessage.ProtoReflect.Descriptor instead.
 func (*InitialAgentMessage) Descriptor() ([]byte, []int) {
-	return file_api_proto_shellsync_proto_rawDescGZIP(), []int{3}
+	return file_api_proto_shellsync_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *InitialAgentMessage) GetSessionId() string {
@@ -270,7 +338,7 @@ type TerminalOutput struct {
 
 func (x *TerminalOutput) Reset() {
 	*x = TerminalOutput{}
-	mi := &file_api_proto_shellsync_proto_msgTypes[4]
+	mi := &file_api_proto_shellsync_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -282,7 +350,7 @@ func (x *TerminalOutput) String() string {
 func (*TerminalOutput) ProtoMessage() {}
 
 func (x *TerminalOutput) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_shellsync_proto_msgTypes[4]
+	mi := &file_api_proto_shellsync_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -295,7 +363,7 @@ func (x *TerminalOutput) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TerminalOutput.ProtoReflect.Descriptor instead.
 func (*TerminalOutput) Descriptor() ([]byte, []int) {
-	return file_api_proto_shellsync_proto_rawDescGZIP(), []int{4}
+	return file_api_proto_shellsync_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *TerminalOutput) GetTerminalId() string {
@@ -314,14 +382,14 @@ func (x *TerminalOutput) GetData() []byte {
 
 type TerminalCreatedResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	TerminalId    string                 `protobuf:"bytes,1,opt,name=terminal_id,json=terminalId,proto3" json:"terminal_id,omitempty"` // The ID of the newly created terminal
+	TerminalId    string                 `protobuf:"bytes,1,opt,name=terminal_id,json=terminalId,proto3" json:"terminal_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *TerminalCreatedResponse) Reset() {
 	*x = TerminalCreatedResponse{}
-	mi := &file_api_proto_shellsync_proto_msgTypes[5]
+	mi := &file_api_proto_shellsync_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -333,7 +401,7 @@ func (x *TerminalCreatedResponse) String() string {
 func (*TerminalCreatedResponse) ProtoMessage() {}
 
 func (x *TerminalCreatedResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_shellsync_proto_msgTypes[5]
+	mi := &file_api_proto_shellsync_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -346,7 +414,7 @@ func (x *TerminalCreatedResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TerminalCreatedResponse.ProtoReflect.Descriptor instead.
 func (*TerminalCreatedResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_shellsync_proto_rawDescGZIP(), []int{5}
+	return file_api_proto_shellsync_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *TerminalCreatedResponse) GetTerminalId() string {
@@ -356,7 +424,6 @@ func (x *TerminalCreatedResponse) GetTerminalId() string {
 	return ""
 }
 
-// --- Messages from Server to Agent (Client) ---
 type ServerUpdate struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Types that are valid to be assigned to Payload:
@@ -371,7 +438,7 @@ type ServerUpdate struct {
 
 func (x *ServerUpdate) Reset() {
 	*x = ServerUpdate{}
-	mi := &file_api_proto_shellsync_proto_msgTypes[6]
+	mi := &file_api_proto_shellsync_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -383,7 +450,7 @@ func (x *ServerUpdate) String() string {
 func (*ServerUpdate) ProtoMessage() {}
 
 func (x *ServerUpdate) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_shellsync_proto_msgTypes[6]
+	mi := &file_api_proto_shellsync_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -396,7 +463,7 @@ func (x *ServerUpdate) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ServerUpdate.ProtoReflect.Descriptor instead.
 func (*ServerUpdate) Descriptor() ([]byte, []int) {
-	return file_api_proto_shellsync_proto_rawDescGZIP(), []int{6}
+	return file_api_proto_shellsync_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *ServerUpdate) GetPayload() isServerUpdate_Payload {
@@ -446,7 +513,7 @@ type ServerUpdate_PtyInput struct {
 }
 
 type ServerUpdate_CreateTerminalRequest struct {
-	CreateTerminalRequest *CreateTerminalRequest `protobuf:"bytes,3,opt,name=create_terminal_request,json=createTerminalRequest,proto3,oneof"` // Server asks agent to create a terminal
+	CreateTerminalRequest *CreateTerminalRequest `protobuf:"bytes,3,opt,name=create_terminal_request,json=createTerminalRequest,proto3,oneof"`
 }
 
 func (*ServerUpdate_ServerHello) isServerUpdate_Payload() {}
@@ -465,7 +532,7 @@ type TerminalInput struct {
 
 func (x *TerminalInput) Reset() {
 	*x = TerminalInput{}
-	mi := &file_api_proto_shellsync_proto_msgTypes[7]
+	mi := &file_api_proto_shellsync_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -477,7 +544,7 @@ func (x *TerminalInput) String() string {
 func (*TerminalInput) ProtoMessage() {}
 
 func (x *TerminalInput) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_shellsync_proto_msgTypes[7]
+	mi := &file_api_proto_shellsync_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -490,7 +557,7 @@ func (x *TerminalInput) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TerminalInput.ProtoReflect.Descriptor instead.
 func (*TerminalInput) Descriptor() ([]byte, []int) {
-	return file_api_proto_shellsync_proto_rawDescGZIP(), []int{7}
+	return file_api_proto_shellsync_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *TerminalInput) GetTerminalId() string {
@@ -509,13 +576,14 @@ func (x *TerminalInput) GetData() []byte {
 
 type CreateTerminalRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
+	TerminalId    string                 `protobuf:"bytes,1,opt,name=terminal_id,json=terminalId,proto3" json:"terminal_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *CreateTerminalRequest) Reset() {
 	*x = CreateTerminalRequest{}
-	mi := &file_api_proto_shellsync_proto_msgTypes[8]
+	mi := &file_api_proto_shellsync_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -527,7 +595,7 @@ func (x *CreateTerminalRequest) String() string {
 func (*CreateTerminalRequest) ProtoMessage() {}
 
 func (x *CreateTerminalRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_shellsync_proto_msgTypes[8]
+	mi := &file_api_proto_shellsync_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -540,7 +608,14 @@ func (x *CreateTerminalRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateTerminalRequest.ProtoReflect.Descriptor instead.
 func (*CreateTerminalRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_shellsync_proto_rawDescGZIP(), []int{8}
+	return file_api_proto_shellsync_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *CreateTerminalRequest) GetTerminalId() string {
+	if x != nil {
+		return x.TerminalId
+	}
+	return ""
 }
 
 var File_api_proto_shellsync_proto protoreflect.FileDescriptor
@@ -553,13 +628,18 @@ const file_api_proto_shellsync_proto_rawDesc = "" +
 	"\x0eCreateResponse\x12\x1d\n" +
 	"\n" +
 	"session_id\x18\x01 \x01(\tR\tsessionId\x12!\n" +
-	"\ffrontend_url\x18\x02 \x01(\tR\vfrontendUrl\"\x82\x02\n" +
+	"\ffrontend_url\x18\x02 \x01(\tR\vfrontendUrl\"\xc5\x02\n" +
 	"\fClientUpdate\x12I\n" +
 	"\x0finitial_message\x18\x01 \x01(\v2\x1e.shellsync.InitialAgentMessageH\x00R\x0einitialMessage\x12:\n" +
 	"\n" +
 	"pty_output\x18\x02 \x01(\v2\x19.shellsync.TerminalOutputH\x00R\tptyOutput\x12`\n" +
-	"\x19terminal_created_response\x18\x03 \x01(\v2\".shellsync.TerminalCreatedResponseH\x00R\x17terminalCreatedResponseB\t\n" +
-	"\apayload\"4\n" +
+	"\x19terminal_created_response\x18\x03 \x01(\v2\".shellsync.TerminalCreatedResponseH\x00R\x17terminalCreatedResponse\x12A\n" +
+	"\x0eterminal_error\x18\x04 \x01(\v2\x18.shellsync.TerminalErrorH\x00R\rterminalErrorB\t\n" +
+	"\apayload\"F\n" +
+	"\rTerminalError\x12\x1f\n" +
+	"\vterminal_id\x18\x01 \x01(\tR\n" +
+	"terminalId\x12\x14\n" +
+	"\x05error\x18\x02 \x01(\tR\x05error\"4\n" +
 	"\x13InitialAgentMessage\x12\x1d\n" +
 	"\n" +
 	"session_id\x18\x01 \x01(\tR\tsessionId\"E\n" +
@@ -578,8 +658,10 @@ const file_api_proto_shellsync_proto_rawDesc = "" +
 	"\rTerminalInput\x12\x1f\n" +
 	"\vterminal_id\x18\x01 \x01(\tR\n" +
 	"terminalId\x12\x12\n" +
-	"\x04data\x18\x02 \x01(\fR\x04data\"\x17\n" +
-	"\x15CreateTerminalRequest2\x91\x01\n" +
+	"\x04data\x18\x02 \x01(\fR\x04data\"8\n" +
+	"\x15CreateTerminalRequest\x12\x1f\n" +
+	"\vterminal_id\x18\x01 \x01(\tR\n" +
+	"terminalId2\x91\x01\n" +
 	"\tShellSync\x12D\n" +
 	"\rCreateSession\x12\x18.shellsync.CreateRequest\x1a\x19.shellsync.CreateResponse\x12>\n" +
 	"\x06Stream\x12\x17.shellsync.ClientUpdate\x1a\x17.shellsync.ServerUpdate(\x010\x01B+Z)github.com/Ayush-Vish/shellsync/api/protob\x06proto3"
@@ -596,33 +678,35 @@ func file_api_proto_shellsync_proto_rawDescGZIP() []byte {
 	return file_api_proto_shellsync_proto_rawDescData
 }
 
-var file_api_proto_shellsync_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
+var file_api_proto_shellsync_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
 var file_api_proto_shellsync_proto_goTypes = []any{
 	(*CreateRequest)(nil),           // 0: shellsync.CreateRequest
 	(*CreateResponse)(nil),          // 1: shellsync.CreateResponse
 	(*ClientUpdate)(nil),            // 2: shellsync.ClientUpdate
-	(*InitialAgentMessage)(nil),     // 3: shellsync.InitialAgentMessage
-	(*TerminalOutput)(nil),          // 4: shellsync.TerminalOutput
-	(*TerminalCreatedResponse)(nil), // 5: shellsync.TerminalCreatedResponse
-	(*ServerUpdate)(nil),            // 6: shellsync.ServerUpdate
-	(*TerminalInput)(nil),           // 7: shellsync.TerminalInput
-	(*CreateTerminalRequest)(nil),   // 8: shellsync.CreateTerminalRequest
+	(*TerminalError)(nil),           // 3: shellsync.TerminalError
+	(*InitialAgentMessage)(nil),     // 4: shellsync.InitialAgentMessage
+	(*TerminalOutput)(nil),          // 5: shellsync.TerminalOutput
+	(*TerminalCreatedResponse)(nil), // 6: shellsync.TerminalCreatedResponse
+	(*ServerUpdate)(nil),            // 7: shellsync.ServerUpdate
+	(*TerminalInput)(nil),           // 8: shellsync.TerminalInput
+	(*CreateTerminalRequest)(nil),   // 9: shellsync.CreateTerminalRequest
 }
 var file_api_proto_shellsync_proto_depIdxs = []int32{
-	3, // 0: shellsync.ClientUpdate.initial_message:type_name -> shellsync.InitialAgentMessage
-	4, // 1: shellsync.ClientUpdate.pty_output:type_name -> shellsync.TerminalOutput
-	5, // 2: shellsync.ClientUpdate.terminal_created_response:type_name -> shellsync.TerminalCreatedResponse
-	7, // 3: shellsync.ServerUpdate.pty_input:type_name -> shellsync.TerminalInput
-	8, // 4: shellsync.ServerUpdate.create_terminal_request:type_name -> shellsync.CreateTerminalRequest
-	0, // 5: shellsync.ShellSync.CreateSession:input_type -> shellsync.CreateRequest
-	2, // 6: shellsync.ShellSync.Stream:input_type -> shellsync.ClientUpdate
-	1, // 7: shellsync.ShellSync.CreateSession:output_type -> shellsync.CreateResponse
-	6, // 8: shellsync.ShellSync.Stream:output_type -> shellsync.ServerUpdate
-	7, // [7:9] is the sub-list for method output_type
-	5, // [5:7] is the sub-list for method input_type
-	5, // [5:5] is the sub-list for extension type_name
-	5, // [5:5] is the sub-list for extension extendee
-	0, // [0:5] is the sub-list for field type_name
+	4, // 0: shellsync.ClientUpdate.initial_message:type_name -> shellsync.InitialAgentMessage
+	5, // 1: shellsync.ClientUpdate.pty_output:type_name -> shellsync.TerminalOutput
+	6, // 2: shellsync.ClientUpdate.terminal_created_response:type_name -> shellsync.TerminalCreatedResponse
+	3, // 3: shellsync.ClientUpdate.terminal_error:type_name -> shellsync.TerminalError
+	8, // 4: shellsync.ServerUpdate.pty_input:type_name -> shellsync.TerminalInput
+	9, // 5: shellsync.ServerUpdate.create_terminal_request:type_name -> shellsync.CreateTerminalRequest
+	0, // 6: shellsync.ShellSync.CreateSession:input_type -> shellsync.CreateRequest
+	2, // 7: shellsync.ShellSync.Stream:input_type -> shellsync.ClientUpdate
+	1, // 8: shellsync.ShellSync.CreateSession:output_type -> shellsync.CreateResponse
+	7, // 9: shellsync.ShellSync.Stream:output_type -> shellsync.ServerUpdate
+	8, // [8:10] is the sub-list for method output_type
+	6, // [6:8] is the sub-list for method input_type
+	6, // [6:6] is the sub-list for extension type_name
+	6, // [6:6] is the sub-list for extension extendee
+	0, // [0:6] is the sub-list for field type_name
 }
 
 func init() { file_api_proto_shellsync_proto_init() }
@@ -634,8 +718,9 @@ func file_api_proto_shellsync_proto_init() {
 		(*ClientUpdate_InitialMessage)(nil),
 		(*ClientUpdate_PtyOutput)(nil),
 		(*ClientUpdate_TerminalCreatedResponse)(nil),
+		(*ClientUpdate_TerminalError)(nil),
 	}
-	file_api_proto_shellsync_proto_msgTypes[6].OneofWrappers = []any{
+	file_api_proto_shellsync_proto_msgTypes[7].OneofWrappers = []any{
 		(*ServerUpdate_ServerHello)(nil),
 		(*ServerUpdate_PtyInput)(nil),
 		(*ServerUpdate_CreateTerminalRequest)(nil),
@@ -646,7 +731,7 @@ func file_api_proto_shellsync_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_proto_shellsync_proto_rawDesc), len(file_api_proto_shellsync_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   9,
+			NumMessages:   10,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

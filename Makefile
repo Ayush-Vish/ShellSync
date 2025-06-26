@@ -30,6 +30,11 @@ build-client:
 
 	@echo "Building for macOS (arm64/M1)..."
 	GOOS=darwin GOARCH=arm64 go build -o bin/client-darwin-arm64 ./client
-#
-#	@echo "Building for Windows (amd64)..."
+
+	@echo "Building for Windows (amd64)..."
 	GOOS=windows GOARCH=amd64 go build -o bin/client-windows-amd64.exe ./client
+
+	@echo "Building for Windows (arm64)..."
+	GOOS=windows GOARCH=arm64 go build -o bin/client-windows-arm64.exe ./client
+	
+	@echo "Builds completed. Binaries are in the bin/ directory."

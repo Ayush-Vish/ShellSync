@@ -14,18 +14,24 @@ var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool { return true },
 }
 
+type client struct {
+	conn      *websocket.Conn
+	writeChan chan interface{} // Channel for messages to be written
+	mu        sync.Mutex       // Mutex for connection state
+	closed    bool             // Flag to indicate if client is closed
+}
+
 type Hub struct {
 	service  types.PTYService
-	clients  map[string]*websocket.Conn
+	clients  map[string]*client // Changed to store client struct
 	sessions map[string]map[string]bool
 	mu       sync.RWMutex
 }
 
-// NewHub creates a new Hub instance.
 func NewHub(service types.PTYService) *Hub {
 	return &Hub{
 		service:  service,
-		clients:  make(map[string]*websocket.Conn),
+		clients:  make(map[string]*client),
 		sessions: make(map[string]map[string]bool),
 	}
 }
@@ -71,7 +77,13 @@ func (h *Hub) registerClient(conn *websocket.Conn, sessionID, clientID string) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	h.clients[clientID] = conn
+	c := &client{
+		conn:      conn,
+		writeChan: make(chan interface{}, 100),
+		closed:    false,
+	}
+
+	h.clients[clientID] = c
 	if h.sessions[sessionID] == nil {
 		h.sessions[sessionID] = make(map[string]bool)
 	}
@@ -79,14 +91,20 @@ func (h *Hub) registerClient(conn *websocket.Conn, sessionID, clientID string) {
 
 	h.service.AddClientToSession(sessionID, clientID)
 	log.Printf("Client %s registered to session %s", clientID, sessionID)
+
+	go h.writeLoop(c, clientID)
 }
 
 func (h *Hub) unregisterClient(clientID, sessionID string) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	if conn, ok := h.clients[clientID]; ok {
-		conn.Close()
+	if c, ok := h.clients[clientID]; ok {
+		c.mu.Lock()
+		c.closed = true
+		close(c.writeChan)
+		c.conn.Close()
+		c.mu.Unlock()
 		delete(h.clients, clientID)
 		if h.sessions[sessionID] != nil {
 			delete(h.sessions[sessionID], clientID)
@@ -98,6 +116,23 @@ func (h *Hub) unregisterClient(clientID, sessionID string) {
 	}
 }
 
+func (h *Hub) writeLoop(c *client, clientID string) {
+	for msg := range c.writeChan {
+		c.mu.Lock()
+		if c.closed {
+			c.mu.Unlock()
+			return
+		}
+		if err := c.conn.WriteJSON(msg); err != nil {
+			log.Printf("Error writing message to client %s: %v", clientID, err)
+			c.mu.Unlock()
+			h.unregisterClient(clientID, "")
+			return
+		}
+		c.mu.Unlock()
+	}
+}
+
 func normalizeMessage(msg types.Message) map[string]interface{} {
 	result := map[string]interface{}{
 		"type":    msg.Type,
@@ -105,12 +140,14 @@ func normalizeMessage(msg types.Message) map[string]interface{} {
 		"sender":  msg.Sender,
 	}
 
-	// Convert snake_case to camelCase for frontend
 	if msg.TerminalID != "" {
-		result["terminalId"] = msg.TerminalID // Frontend expects camelCase
+		result["terminalId"] = msg.TerminalID
 	}
 	if msg.FrontendID != "" {
-		result["frontendId"] = msg.FrontendID // Frontend expects camelCase
+		result["frontendId"] = msg.FrontendID
+	}
+	if msg.Error != "" {
+		result["error"] = msg.Error
 	}
 
 	return result
@@ -122,7 +159,6 @@ func (h *Hub) readLoop(conn *websocket.Conn, sessionID, clientID string) {
 	}()
 
 	for {
-
 		var rawMsg map[string]interface{}
 		if err := conn.ReadJSON(&rawMsg); err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
@@ -134,7 +170,7 @@ func (h *Hub) readLoop(conn *websocket.Conn, sessionID, clientID string) {
 		msg := types.Message{
 			Type:    getString(rawMsg, "type"),
 			Content: getString(rawMsg, "content"),
-			Sender:  clientID, // Always set sender to clientID
+			Sender:  clientID,
 		}
 
 		if terminalId := getString(rawMsg, "terminalId"); terminalId != "" {
@@ -162,7 +198,6 @@ func (h *Hub) readLoop(conn *websocket.Conn, sessionID, clientID string) {
 			h.service.ForwardInputToAgent(sessionID, msg.TerminalID, []byte(msg.Content))
 
 		case "create_terminal":
-
 			var payload struct {
 				FrontendID string `json:"frontendId"`
 			}
@@ -178,7 +213,6 @@ func (h *Hub) readLoop(conn *websocket.Conn, sessionID, clientID string) {
 			}
 
 			log.Printf("Client %s requested a new terminal for session %s with FrontendID %s", clientID, sessionID, payload.FrontendID)
-			// Pass the frontendID to the service layer.
 			h.service.RequestNewTerminal(sessionID, payload.FrontendID)
 
 		default:
@@ -187,7 +221,6 @@ func (h *Hub) readLoop(conn *websocket.Conn, sessionID, clientID string) {
 	}
 }
 
-// Helper function to safely get string values from map
 func getString(m map[string]interface{}, key string) string {
 	if val, ok := m[key]; ok {
 		if str, ok := val.(string); ok {
@@ -197,15 +230,11 @@ func getString(m map[string]interface{}, key string) string {
 	return ""
 }
 
-// BroadcastToSession sends a message to all clients in a given session.
 func (h *Hub) BroadcastToSession(sessionID string, message types.Message) {
 	h.mu.RLock()
-	defer h.mu.RUnlock()
-
 	sessionClients, ok := h.sessions[sessionID]
 	if !ok {
 		log.Printf("Attempted to broadcast to non-existent session: %s. Creating session now.", sessionID)
-		// Create the session on-the-fly
 		h.mu.RUnlock()
 		h.ensureSessionExists(sessionID)
 		h.mu.RLock()
@@ -216,20 +245,23 @@ func (h *Hub) BroadcastToSession(sessionID string, message types.Message) {
 		}
 	}
 
-	// Normalize message for frontend compatibility
 	normalizedMsg := normalizeMessage(message)
-
 	log.Printf("Broadcasting to session %s: %+v", sessionID, normalizedMsg)
 
 	for clientID := range sessionClients {
-		conn, clientOk := h.clients[clientID]
+		c, clientOk := h.clients[clientID]
 		if clientOk {
-			// It's safer to write to each client in its own goroutine to avoid blocking.
-			go func(c *websocket.Conn, cID string) {
-				if err := c.WriteJSON(normalizedMsg); err != nil {
-					log.Printf("Error writing message to client %s: %v", cID, err)
+			c.mu.Lock()
+			if !c.closed {
+				select {
+				case c.writeChan <- normalizedMsg:
+
+				default:
+					log.Printf("Write channel for client %s is full, dropping message", clientID)
 				}
-			}(conn, clientID)
+			}
+			c.mu.Unlock()
 		}
 	}
+	h.mu.RUnlock()
 }

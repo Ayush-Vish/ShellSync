@@ -26,4 +26,5 @@ Shellsync is a collaborative terminal-sharing application. The Go server manages
  
 - Bidirectional Grpc Implementation.
 - Setting up Pseudo Terminals.
+- Writing concurrently in Sockets.
 - 

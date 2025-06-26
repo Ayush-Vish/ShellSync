@@ -22,13 +22,19 @@ message CreateResponse {
   string frontend_url = 2;
 }
 
-// --- Messages from Agent (Client) to Server ---
+
 message ClientUpdate {
   oneof payload {
     InitialAgentMessage initial_message = 1;
     TerminalOutput pty_output = 2;
-    TerminalCreatedResponse terminal_created_response = 3; // Agent confirms terminal creation
+    TerminalCreatedResponse terminal_created_response = 3;
+      TerminalError terminal_error = 4;
   }
+}
+
+message TerminalError {
+  string terminal_id = 1;
+  string error = 2;
 }
 
 message InitialAgentMessage {
@@ -41,16 +47,15 @@ message TerminalOutput {
 }
 
 message TerminalCreatedResponse {
-  string terminal_id = 1; // The ID of the newly created terminal
+  string terminal_id = 1;
 }
 
 
-// --- Messages from Server to Agent (Client) ---
 message ServerUpdate{
   oneof payload{
     string server_hello =1;
     TerminalInput pty_input = 2;
-    CreateTerminalRequest create_terminal_request = 3; // Server asks agent to create a terminal
+    CreateTerminalRequest create_terminal_request = 3;
   }
 }
 
@@ -60,5 +65,5 @@ message TerminalInput {
 }
 
 message CreateTerminalRequest {
-  // Can be extended with shell type, etc. in the future
+    string terminal_id = 1;
 }

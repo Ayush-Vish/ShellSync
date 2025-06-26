@@ -34,14 +34,15 @@ type Session struct {
 	Host           string
 	CreatedAt      time.Time
 	Clients        map[string]*Client
-	AgentInputChan chan AgentCommand // Channel to send commands TO the agent
+	AgentInputChan chan AgentCommand
 	Terminals      map[string]*Terminal
 	Mu             sync.RWMutex
 }
 
 type Terminal struct {
-	ID        string
-	CreatedAt time.Time
+	ID         string
+	FrontendID string
+	CreatedAt  time.Time
 }
 
 type AgentCommand interface {
@@ -57,6 +58,7 @@ func (PtyInputData) isAgentCommand() {}
 
 type CreateTerminalCmd struct {
 	FrontendID string
+	TerminalID string
 }
 
 func (CreateTerminalCmd) isAgentCommand() {}
