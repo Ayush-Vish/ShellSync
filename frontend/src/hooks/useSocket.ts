@@ -49,7 +49,7 @@ export function useTerminalSocket(
       return;
     }
 
-    const wsUrl = `ws://localhost:8080/ws?session_id=${sessionId}&client_id=${clientId}`;
+    const wsUrl = `ws://localhost:5000/ws?session_id=${sessionId}&client_id=${clientId}`;
     console.log(`Attempting to connect to WebSocket: ${wsUrl} (attempt ${connectionAttempts + 1})`);
 
     try {

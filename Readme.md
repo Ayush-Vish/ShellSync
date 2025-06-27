@@ -173,5 +173,3 @@ ShellSync is licensed under the [MIT License](LICENSE).
 - **Email**: Contact the maintainer at [your-email@example.com] (replace with your email)
 
 ---
-
-This README provides a clear overview of ShellSync, detailed setup instructions, and encourages community participation. It reflects the project’s current state, including the latest milestones and binary details from the GitHub repository. If you need specific sections expanded, additional screenshots, or help generating a GitHub Actions workflow for CI/CD, let me know!

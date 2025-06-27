@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"github.com/Ayush-Vish/shellsync/backend/internal/websocket"
 	"log"
 	"net"
 	"net/http"
@@ -12,32 +11,33 @@ import (
 	"syscall"
 	"time"
 
-	pb "github.com/Ayush-Vish/shellsync/api/proto"
-	"github.com/Ayush-Vish/shellsync/backend/internal/service"
 	"github.com/gorilla/mux"
 	"google.golang.org/grpc"
+	"github.com/soheilhy/cmux"
+
+	pb "github.com/Ayush-Vish/shellsync/api/proto"
+	"github.com/Ayush-Vish/shellsync/backend/internal/service"
+	"github.com/Ayush-Vish/shellsync/backend/internal/websocket"
 )
 
 func main() {
-
 	shellService := service.NewShellSyncService()
 	wsHub := websocket.NewHub(shellService)
-
 	shellService.SetHub(wsHub)
+
+	lis, err := net.Listen("tcp", ":5000")
+	if err != nil {
+		log.Fatalf("Failed to listen on :5000: %v", err)
+	}
+
+	m := cmux.New(lis)
+
+	grpcL := m.MatchWithWriters(cmux.HTTP2MatchHeaderFieldSendSettings("content-type", "application/grpc"))
+
+	httpL := m.Match(cmux.HTTP1Fast())
 
 	grpcServer := grpc.NewServer()
 	pb.RegisterShellSyncServer(grpcServer, shellService)
-
-	go func() {
-		lis, err := net.Listen("tcp", ":5000")
-		if err != nil {
-			log.Fatalf("Failed to listen for gRPC: %v", err)
-		}
-		log.Println("gRPC server started on http://localhost:5000")
-		if err := grpcServer.Serve(lis); err != nil {
-			log.Fatalf("gRPC server failed: %v", err)
-		}
-	}()
 
 	r := mux.NewRouter()
 	r.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -51,18 +51,29 @@ func main() {
 			return
 		}
 	})
-
 	r.HandleFunc("/ws", wsHub.HandleWebSocket)
 
 	httpServer := &http.Server{
-		Addr:    ":8080",
 		Handler: r,
 	}
 
 	go func() {
-		log.Println("HTTP server started on http://localhost:8080")
-		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("HTTP server error: %v", err)
+		log.Println("Starting gRPC server on shared port :5000")
+		if err := grpcServer.Serve(grpcL); err != nil {
+			log.Fatalf("gRPC server failed: %v", err)
+		}
+	}()
+
+	go func() {
+		log.Println("Starting HTTP server on shared port :5000")
+		if err := httpServer.Serve(httpL); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("HTTP server failed: %v", err)
+		}
+	}()
+
+	go func() {
+		if err := m.Serve(); err != nil {
+			log.Fatalf("cmux serve error: %v", err)
 		}
 	}()
 
