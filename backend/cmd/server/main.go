@@ -12,8 +12,8 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
-	"google.golang.org/grpc"
 	"github.com/soheilhy/cmux"
+	"google.golang.org/grpc"
 
 	pb "github.com/Ayush-Vish/shellsync/api/proto"
 	"github.com/Ayush-Vish/shellsync/backend/internal/service"

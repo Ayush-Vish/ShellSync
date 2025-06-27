@@ -1,8 +1,5 @@
 "use client";
 import { motion } from 'framer-motion';
-import { ChevronRight, Lamp } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { GlowingStarsBackgroundCard } from '@/components/ui/glowing-stars';
 import { SparklesPreview } from './SparklesPreview';
 import { LampDemo } from './LampDemo';
 

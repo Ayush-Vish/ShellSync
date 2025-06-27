@@ -18,6 +18,7 @@ export interface TerminalInfo {
 }
 
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function normalizeMessage(data: any): SocketMessage {
   return {
     type: data.type,

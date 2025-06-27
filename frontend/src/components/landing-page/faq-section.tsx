@@ -67,7 +67,7 @@ export function FAQSection() {
             Frequently Asked <span className="text-emerald-400">Questions</span>
           </h2>
           <p className="text-xl text-gray-300 max-w-3xl mx-auto">
-            Got questions about ShellSync? We've got answers. If you don't find what you're looking for, feel free to
+            Got questions about ShellSync? We&apos;ve got answers. If you don&apos;t find what you&apos;re looking for, feel free to
             reach out on GitHub.
           </p>
         </motion.div>

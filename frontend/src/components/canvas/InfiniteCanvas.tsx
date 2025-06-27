@@ -102,7 +102,10 @@ const InfiniteCanvas = forwardRef<CanvasRef, InfiniteCanvasProps>(({ children },
             >
                                 {Children.map(children, (child) => {
                     if (isValidElement(child)) {
-                        return cloneElement(child as React.ReactElement<any>, {
+                        return cloneElement(child as React.ReactElement<React.PropsWithChildren<{
+                            zoom: number;
+                            setCanvasPanningLocked: (isLocked: boolean) => void;
+                        }>>, {
                             zoom,
                             setCanvasPanningLocked,
                         });
