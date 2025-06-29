@@ -25,7 +25,7 @@ var rootCmd = &cobra.Command{
 
 func init() {
 	rootCmd.PersistentFlags().StringVar(&host, "host", "localhost", "Host to connect to")
-	rootCmd.PersistentFlags().IntVar(&port, "port", 5000, "Port to connect to")
+	rootCmd.PersistentFlags().IntVar(&port, "port", 5001, "Port to connect to")
 
 }
 

@@ -1,50 +1,47 @@
 "use client"
 
 import { motion } from "framer-motion"
+import { CardContainer, CardBody, CardItem } from "@/components/ui/3d-card"
 import { Users, Layout, Download, Zap, Shield, Globe } from "lucide-react"
 
 const features = [
   {
-    icon: Users,
-    title: "Real-Time Terminal Collaboration",
+    icon: <Users className="h-12 w-12 text-emerald-400" />,
+    title: "Real-Time Collaboration",
     description:
-      "Share terminal sessions instantly with team members using a unique session URL. Multiple users can view and interact with the same terminal in real-time.",
+      "Share terminal sessions instantly with team members using unique URLs. Perfect for pair programming and debugging.",
   },
   {
-    icon: Layout,
-    title: "Infinite Canvas Interface",
+    icon: <Layout className="h-12 w-12 text-blue-400" />,
+    title: "Infinite Canvas",
     description:
-      "A dynamic, draggable canvas where you can create and position multiple terminal windows. Easily manage multiple sessions in a single workspace.",
+      "Dynamic, draggable workspace where you can create and position multiple terminal windows with zoom and pan.",
   },
   {
-    icon: Download,
+    icon: <Download className="h-12 w-12 text-purple-400" />,
     title: "Cross-Platform Agent",
-    description:
-      "Lightweight agent runs on your machine to handle terminal execution. Available for macOS (amd64, arm64) and Linux (amd64, arm64).",
+    description: "Lightweight agent for macOS and Linux (amd64, arm64) that handles secure terminal execution.",
   },
   {
-    icon: Zap,
+    icon: <Zap className="h-12 w-12 text-yellow-400" />,
     title: "Production-Ready",
-    description:
-      "Built with robust architecture using WebSocket for frontend-backend communication and gRPC for backend-agent interaction.",
+    description: "Built with WebSocket and gRPC for stable, real-time communication with enterprise-grade performance.",
   },
   {
-    icon: Shield,
+    icon: <Shield className="h-12 w-12 text-red-400" />,
     title: "Secure & Reliable",
-    description:
-      "Enterprise-grade security with encrypted connections and stable, real-time terminal input/output streaming with low latency.",
+    description: "Encrypted connections with low-latency streaming for secure terminal collaboration.",
   },
   {
-    icon: Globe,
-    title: "User-Friendly Experience",
-    description:
-      "Simple setup: Download the agent, run it, and access your session via a browser. Intuitive controls for managing terminals.",
+    icon: <Globe className="h-12 w-12 text-cyan-400" />,
+    title: "User-Friendly",
+    description: "Simple setup: download agent, run it, access via browser. Intuitive terminal management controls.",
   },
 ]
 
 export function FeaturesSection() {
   return (
-    <section id="features" className="py-20 bg-gray-900/50">
+    <section id="features" className="py-20 bg-neutral-950">
       <div className="container mx-auto px-4">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -52,12 +49,11 @@ export function FeaturesSection() {
           transition={{ duration: 0.6 }}
           className="text-center mb-16"
         >
-          <h2 className="text-3xl md:text-5xl font-bold mb-6">
-            Powerful Features for <span className="text-emerald-400">Modern Teams</span>
+          <h2 className="text-3xl md:text-5xl font-bold mb-6 bg-clip-text text-transparent bg-gradient-to-b from-neutral-200 to-neutral-600">
+            Powerful Features for Modern Teams
           </h2>
-          <p className="text-xl text-gray-300 max-w-3xl mx-auto">
-            ShellSync combines the power of terminal collaboration with an intuitive interface, making it perfect for
-            developers, system administrators, and teams.
+          <p className="text-xl text-neutral-400 max-w-3xl mx-auto">
+            Everything you need for seamless terminal collaboration
           </p>
         </motion.div>
 
@@ -68,11 +64,24 @@ export function FeaturesSection() {
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: index * 0.1 }}
-              className="bg-gray-800/50 p-6 rounded-lg border border-gray-700 hover:border-emerald-500/50 transition-colors"
             >
-              <feature.icon className="h-12 w-12 text-emerald-400 mb-4" />
-              <h3 className="text-xl font-semibold mb-3">{feature.title}</h3>
-              <p className="text-gray-300">{feature.description}</p>
+              <CardContainer className="inter-var">
+                <CardBody className="bg-gray-50 relative group/card dark:hover:shadow-2xl dark:hover:shadow-emerald-500/[0.1] dark:bg-black dark:border-white/[0.2] border-black/[0.1] w-auto sm:w-[30rem] h-auto rounded-xl p-6 border">
+                  <CardItem translateZ="50" className="text-xl font-bold text-neutral-600 dark:text-white mb-2">
+                    {feature.title}
+                  </CardItem>
+                  <CardItem
+                    as="p"
+                    translateZ="60"
+                    className="text-neutral-500 text-sm max-w-sm mt-2 dark:text-neutral-300 mb-4"
+                  >
+                    {feature.description}
+                  </CardItem>
+                  <CardItem translateZ="100" className="w-full mt-4">
+                    <div className="flex justify-center">{feature.icon}</div>
+                  </CardItem>
+                </CardBody>
+              </CardContainer>
             </motion.div>
           ))}
         </div>
