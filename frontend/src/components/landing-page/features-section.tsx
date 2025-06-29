@@ -1,43 +1,46 @@
-"use client"
+"use client";
 
-import { motion } from "framer-motion"
-import { CardContainer, CardBody, CardItem } from "@/components/ui/3d-card"
-import { Users, Layout, Download, Zap, Shield, Globe } from "lucide-react"
+import { motion } from "framer-motion";
+import { Users, Layout, Download, Zap, Shield, Globe } from "lucide-react";
 
 const features = [
   {
-    icon: <Users className="h-12 w-12 text-emerald-400" />,
+    icon: <Users className="h-10 w-10 text-emerald-400" />,
     title: "Real-Time Collaboration",
     description:
       "Share terminal sessions instantly with team members using unique URLs. Perfect for pair programming and debugging.",
   },
   {
-    icon: <Layout className="h-12 w-12 text-blue-400" />,
+    icon: <Layout className="h-10 w-10 text-blue-400" />,
     title: "Infinite Canvas",
     description:
       "Dynamic, draggable workspace where you can create and position multiple terminal windows with zoom and pan.",
   },
   {
-    icon: <Download className="h-12 w-12 text-purple-400" />,
+    icon: <Download className="h-10 w-10 text-purple-400" />,
     title: "Cross-Platform Agent",
-    description: "Lightweight agent for macOS and Linux (amd64, arm64) that handles secure terminal execution.",
+    description:
+      "Lightweight agent for macOS and Linux (amd64, arm64) that handles secure terminal execution.",
   },
   {
-    icon: <Zap className="h-12 w-12 text-yellow-400" />,
+    icon: <Zap className="h-10 w-10 text-yellow-400" />,
     title: "Production-Ready",
-    description: "Built with WebSocket and gRPC for stable, real-time communication with enterprise-grade performance.",
+    description:
+      "Built with WebSocket and gRPC for stable, real-time communication with enterprise-grade performance.",
   },
   {
-    icon: <Shield className="h-12 w-12 text-red-400" />,
+    icon: <Shield className="h-10 w-10 text-red-400" />,
     title: "Secure & Reliable",
-    description: "Encrypted connections with low-latency streaming for secure terminal collaboration.",
+    description:
+      "Encrypted connections with low-latency streaming for secure terminal collaboration.",
   },
   {
-    icon: <Globe className="h-12 w-12 text-cyan-400" />,
+    icon: <Globe className="h-10 w-10 text-cyan-400" />,
     title: "User-Friendly",
-    description: "Simple setup: download agent, run it, access via browser. Intuitive terminal management controls.",
+    description:
+      "Simple setup: download agent, run it, access via browser. Intuitive terminal management controls.",
   },
-]
+];
 
 export function FeaturesSection() {
   return (
@@ -64,28 +67,22 @@ export function FeaturesSection() {
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: index * 0.1 }}
+              className="group/card relative overflow-hidden rounded-lg shadow-lg bg-neutral-900 border border-neutral-800 p-6"
             >
-              <CardContainer className="inter-var">
-                <CardBody className="bg-gray-50 relative group/card dark:hover:shadow-2xl dark:hover:shadow-emerald-500/[0.1] dark:bg-black dark:border-white/[0.2] border-black/[0.1] w-auto sm:w-[30rem] h-auto rounded-xl p-6 border">
-                  <CardItem translateZ="50" className="text-xl font-bold text-neutral-600 dark:text-white mb-2">
-                    {feature.title}
-                  </CardItem>
-                  <CardItem
-                    as="p"
-                    translateZ="60"
-                    className="text-neutral-500 text-sm max-w-sm mt-2 dark:text-neutral-300 mb-4"
-                  >
-                    {feature.description}
-                  </CardItem>
-                  <CardItem translateZ="100" className="w-full mt-4">
-                    <div className="flex justify-center">{feature.icon}</div>
-                  </CardItem>
-                </CardBody>
-              </CardContainer>
+              <div className="absolute inset-0 bg-neutral-950 opacity-0 group-hover/card:opacity-40 transition-opacity duration-300" />
+              <div className="relative z-10 flex items-center justify-center mb-4">
+                {feature.icon}
+              </div>
+              <h3 className="text-xl font-semibold text-white mb-2 text-center">
+                {feature.title}
+              </h3>
+              <p className="text-sm text-neutral-400 text-center">
+                {feature.description}
+              </p>
             </motion.div>
           ))}
         </div>
       </div>
     </section>
-  )
+  );
 }

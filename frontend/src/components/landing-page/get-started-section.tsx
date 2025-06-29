@@ -45,6 +45,15 @@ export function GetStartedSection() {
     setCopiedIndex(index)
     setTimeout(() => setCopiedIndex(null), 2000)
   }
+  const handleStartClick = async () => {
+  const res = await fetch("/api/agent")
+  const data = await res.json()
+  if (data?.url) {
+    window.location.href = data.url
+  } else {
+    alert("Unsupported OS or an error occurred.")
+  }
+}
 
   return (
     <section id="get-started" className="py-20 bg-neutral-900">
@@ -64,7 +73,7 @@ export function GetStartedSection() {
 
           <div className="flex justify-center mb-12">
             <div className="h-[20rem] w-[20rem]">
-              <EvervaultCard text="Start" />
+              <EvervaultCard handleStartClick={handleStartClick} text="Start" />
             </div>
           </div>
 
