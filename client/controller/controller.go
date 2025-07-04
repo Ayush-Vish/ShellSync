@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"os/user"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -21,7 +22,7 @@ import (
 
 type Agent struct {
 	ptys        map[string]*os.File
-	terminalMap map[string]string   
+	terminalMap map[string]string
 	mu          sync.RWMutex
 }
 
@@ -31,10 +32,33 @@ func NewAgent() *Agent {
 		terminalMap: make(map[string]string),
 	}
 }
+func getDefaultShell(ctx context.Context) *exec.Cmd {
+	var shell string
+	var args []string
 
+	switch runtime.GOOS {
+	case "windows":
+		// Use PowerShell or cmd based on environment
+		shell = os.Getenv("COMSPEC") // Usually cmd.exe
+		if shell == "" {
+			shell = "cmd.exe"
+		}
+		args = []string{}
+	default:
+		// Unix-like systems
+		shell = os.Getenv("SHELL")
+		if shell == "" {
+			shell = "/bin/bash" // fallback
+		}
+		args = []string{}
+	}
+
+	return exec.CommandContext(ctx, shell, args...)
+}
 func (a *Agent) spawnNewPty(ctx context.Context, stream pb.ShellSync_StreamClient, backendID string) error {
 	localID := "term-" + uuid.New().String()[:8]
-	cmd := exec.CommandContext(ctx, "/bin/bash")
+
+	cmd := getDefaultShell(ctx)
 
 	ptmx, err := pty.Start(cmd)
 	if err != nil {
@@ -123,7 +147,6 @@ func startStream(client pb.ShellSyncClient, sessionID string) error {
 	}
 
 	agent := NewAgent()
-
 
 	defaultBackendID := "term-" + uuid.New().String()[:8]
 	if err := agent.spawnNewPty(ctx, stream, defaultBackendID); err != nil {

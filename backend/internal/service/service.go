@@ -48,7 +48,7 @@ func (s *ShellSyncService) CreateSession(ctx context.Context, req *pb.CreateRequ
 		Clients:        make(map[string]*types.Client),
 		Terminals:      make(map[string]*types.Terminal),
 		CreatedAt:      time.Now(),
-		AgentInputChan: make(chan types.AgentCommand, 20), 
+		AgentInputChan: make(chan types.AgentCommand, 20),
 	}
 	s.sessions[sessionID] = session
 
@@ -64,14 +64,12 @@ func (s *ShellSyncService) Stream(stream pb.ShellSync_StreamServer) error {
 	log.Println("Server: New agent stream connected. Waiting for initial message...")
 	ctx := stream.Context()
 
-
 	initialMsg, err := stream.Recv()
 	if err != nil {
 		log.Printf("Failed to receive initial message from agent: %v", err)
 		return err
 	}
 	sessionID := initialMsg.GetInitialMessage().GetSessionId()
-
 
 	s.mu.RLock()
 	session, exists := s.sessions[sessionID]
@@ -91,7 +89,6 @@ func (s *ShellSyncService) Stream(stream pb.ShellSync_StreamServer) error {
 				}
 				return
 			}
-
 
 			switch payload := msgFromAgent.Payload.(type) {
 			case *pb.ClientUpdate_PtyOutput:
@@ -115,7 +112,7 @@ func (s *ShellSyncService) Stream(stream pb.ShellSync_StreamServer) error {
 					terminal = &types.Terminal{ID: resp.GetTerminalId(), CreatedAt: time.Now()}
 					session.Terminals[resp.GetTerminalId()] = terminal
 				}
-				frontendID := terminal.FrontendID 
+				frontendID := terminal.FrontendID
 				session.Mu.Unlock()
 
 				message := types.Message{
@@ -148,7 +145,6 @@ func (s *ShellSyncService) Stream(stream pb.ShellSync_StreamServer) error {
 			}
 		}
 	}()
-
 
 	for {
 		select {
@@ -226,16 +222,15 @@ func (s *ShellSyncService) RequestNewTerminal(sessionID, frontendID string) {
 	session.Terminals[backendTerminalID] = &types.Terminal{
 		ID:         backendTerminalID,
 		CreatedAt:  time.Now(),
-		FrontendID: frontendID, 
+		FrontendID: frontendID,
 	}
 	session.Mu.Unlock()
 	log.Printf("Requesting agent to create terminal with ID %s for session %s", backendTerminalID, sessionID)
 
-
 	select {
 	case session.AgentInputChan <- types.CreateTerminalCmd{
 		TerminalID: backendTerminalID,
-		FrontendID: frontendID, 
+		FrontendID: frontendID,
 	}:
 
 	default:

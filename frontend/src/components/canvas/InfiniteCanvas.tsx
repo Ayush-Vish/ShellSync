@@ -1,121 +1,130 @@
-'use client';
+"use client"
 
-import React, {
-    useState,
-    useRef,
-    useEffect,
-    forwardRef,
-    useImperativeHandle,
-    MouseEvent,
-    Children,
-    cloneElement,
-    isValidElement
-} from 'react';
-import { TouchZoom, INITIAL_ZOOM } from '@/utils/touchZoom';
+import type React from "react"
+import {
+  useState,
+  useRef,
+  useEffect,
+  forwardRef,
+  useImperativeHandle,
+  type MouseEvent,
+  Children,
+  cloneElement,
+  isValidElement,
+} from "react"
+import { TouchZoom, INITIAL_ZOOM } from "@/utils/touchZoom"
 
 export interface CanvasRef {
-    resetView: () => void;
-    getCanvasCenter: () => { x: number; y: number };
+  resetView: () => void
+  getCanvasCenter: () => { x: number; y: number }
 }
 
 interface InfiniteCanvasProps {
-    children: React.ReactNode;
+  children: React.ReactNode
 }
 
 const InfiniteCanvas = forwardRef<CanvasRef, InfiniteCanvasProps>(({ children }, ref) => {
-    const canvasRef = useRef<HTMLDivElement>(null);
-    const touchZoomRef = useRef<TouchZoom | null>(null);
+  const canvasRef = useRef<HTMLDivElement>(null)
+  const touchZoomRef = useRef<TouchZoom | null>(null)
+  const [pan, setPan] = useState({ x: 0, y: 0 })
+  const [zoom, setZoom] = useState(INITIAL_ZOOM)
+  const isPanning = useRef(false)
 
-    const [pan, setPan] = useState({ x: 0, y: 0 });
-    const [zoom, setZoom] = useState(INITIAL_ZOOM);
+  const setCanvasPanningLocked = (isLocked: boolean) => {
+    if (touchZoomRef.current) {
+      touchZoomRef.current.isPanningLocked = isLocked
+    }
+  }
 
-    const isPanning = useRef(false);
+  useImperativeHandle(ref, () => ({
+    resetView: () => {
+      touchZoomRef.current?.reset()
+    },
+    getCanvasCenter: () => {
+      if (!canvasRef.current) return { x: 0, y: 0 }
+      const rect = canvasRef.current.getBoundingClientRect()
+      return {
+        x: (rect.width / 2 - pan.x) / zoom,
+        y: (rect.height / 2 - pan.y) / zoom,
+      }
+    },
+  }))
 
-    const setCanvasPanningLocked = (isLocked: boolean) => {
-        if (touchZoomRef.current) {
-            touchZoomRef.current.isPanningLocked = isLocked;
-        }
-    };
+  useEffect(() => {
+    const canvasElement = canvasRef.current
+    if (!canvasElement) return
 
-    useImperativeHandle(ref, () => ({
-        resetView: () => {
-            touchZoomRef.current?.reset();
-        },
-        getCanvasCenter: () => {
-            if (!canvasRef.current) return { x: 0, y: 0 };
-            const rect = canvasRef.current.getBoundingClientRect();
-            return {
-                x: (rect.width / 2 - pan.x) / zoom,
-                y: (rect.height / 2 - pan.y) / zoom,
-            };
-        }
-    }));
+    const touchZoom = new TouchZoom(canvasElement)
+    touchZoomRef.current = touchZoom
 
-    useEffect(() => {
-        const canvasElement = canvasRef.current;
-        if (!canvasElement) return;
+    const unsubscribe = touchZoom.onMove(() => {
+      const [x, y] = touchZoom.center
+      setPan({ x, y })
+      setZoom(touchZoom.zoom)
+    })
 
-        const touchZoom = new TouchZoom(canvasElement);
-        touchZoomRef.current = touchZoom;
+    return () => {
+      unsubscribe()
+      touchZoom.destroy()
+    }
+  }, [])
 
-        const unsubscribe = touchZoom.onMove(() => {
-            const [x, y] = touchZoom.center;
-            setPan({ x, y });
-            setZoom(touchZoom.zoom);
-        });
+  const handleMouseDown = (e: MouseEvent<HTMLDivElement>) => {
+    if (e.target === e.currentTarget) {
+      isPanning.current = true
+      e.currentTarget.style.cursor = "grabbing"
+    }
+  }
 
-        return () => {
-            unsubscribe();
-            touchZoom.destroy();
-        };
-    }, []);
+  const handleMouseUp = (e: MouseEvent<HTMLDivElement>) => {
+    if (isPanning.current) {
+      isPanning.current = false
+      e.currentTarget.style.cursor = "grab"
+    }
+  }
 
-    const handleMouseDown = (e: MouseEvent<HTMLDivElement>) => {
-        if (e.target === e.currentTarget) {
-            isPanning.current = true;
-            e.currentTarget.style.cursor = 'grabbing';
-        }
-    };
+  return (
+    <div
+      ref={canvasRef}
+      className="h-full w-full overflow-hidden bg-background relative touch-none"
+      style={{
+        cursor: "grab",
+        backgroundImage: `radial-gradient(circle, hsl(var(--muted-foreground) / 0.1) 1px, transparent 1px)`,
+        backgroundSize: "20px 20px",
+      }}
+      onMouseDown={handleMouseDown}
+      onMouseUp={handleMouseUp}
+      onMouseLeave={handleMouseUp}
+    >
+      <div
+        className="absolute top-0 left-0"
+        style={{
+          transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+          transformOrigin: "top left",
+        }}
+      >
+        {Children.map(children, (child) => {
+          if (isValidElement(child)) {
+            return cloneElement(
+              child as React.ReactElement<
+                React.PropsWithChildren<{
+                  zoom: number
+                  setCanvasPanningLocked: (isLocked: boolean) => void
+                }>
+              >,
+              {
+                zoom,
+                setCanvasPanningLocked,
+              },
+            )
+          }
+          return child
+        })}
+      </div>
+    </div>
+  )
+})
 
-    const handleMouseUp = (e: MouseEvent<HTMLDivElement>) => {
-        if (isPanning.current) {
-            isPanning.current = false;
-            e.currentTarget.style.cursor = 'grab';
-        }
-    };
+InfiniteCanvas.displayName = "InfiniteCanvas"
 
-    return (
-        <div
-            ref={canvasRef}
-            className="h-full w-full overflow-hidden bg-white relative touch-none"
-            style={{ cursor: 'grab' }}
-            onMouseDown={handleMouseDown}
-            onMouseUp={handleMouseUp}
-            onMouseLeave={handleMouseUp}
-        >
-            <div
-                className="absolute top-0 left-0"
-                style={{
-                    transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
-                    transformOrigin: 'top left',
-                }}
-            >
-                                {Children.map(children, (child) => {
-                    if (isValidElement(child)) {
-                        return cloneElement(child as React.ReactElement<React.PropsWithChildren<{
-                            zoom: number;
-                            setCanvasPanningLocked: (isLocked: boolean) => void;
-                        }>>, {
-                            zoom,
-                            setCanvasPanningLocked,
-                        });
-                    }
-                    return child;
-                })}
-            </div>
-        </div>
-    );
-});
-
-InfiniteCanvas.displayName = 'InfiniteCanvas';
-export default InfiniteCanvas;
+export default InfiniteCanvas

@@ -16,9 +16,9 @@ var upgrader = websocket.Upgrader{
 
 type client struct {
 	conn      *websocket.Conn
-	writeChan chan interface{} // Channel for messages to be written
-	mu        sync.Mutex       // Mutex for connection state
-	closed    bool             // Flag to indicate if client is closed
+	writeChan chan interface{} // Channel for messages to 
+	mu        sync.Mutex       
+	closed    bool             
 }
 
 type Hub struct {

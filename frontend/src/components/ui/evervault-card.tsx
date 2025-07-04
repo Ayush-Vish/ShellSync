@@ -22,6 +22,19 @@ export const EvervaultCard = ({
     const str = generateRandomString(1500);
     setRandomString(str);
   }, []);
+  // Inside your React component
+const fetchAndDownloadBinary = async () => {
+  const res = await fetch("/api/agent")
+  const { url } = await res.json()
+
+  const a = document.createElement("a")
+  a.href = url
+  a.download = "shellsync-agent"
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+}
+
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   function onMouseMove({ currentTarget, clientX, clientY }: any) {
@@ -41,8 +54,10 @@ export const EvervaultCard = ({
       )}
       onClick={handleStartClick}
       
+      
     >
       <div
+        onClick={fetchAndDownloadBinary}
         onMouseMove={onMouseMove}
         className="group/card rounded-3xl w-full relative overflow-hidden bg-transparent flex items-center justify-center h-full"
       >
