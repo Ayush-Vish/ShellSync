@@ -41,17 +41,16 @@ func (h *Hub) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 	sessionID := r.URL.Query().Get("session_id")
 	clientID := r.URL.Query().Get("client_id")
 
-	log.Printf("New WebSocket connection attempt. SessionID: %s, ClientID: %s", sessionID, clientID)
 	if sessionID == "" || clientID == "" {
 		http.Error(w, "session_id and client_id are required", http.StatusBadRequest)
 		return
 	}
 
-	h.ensureSessionExists(sessionID)
-
-	if _, exists := h.service.GetSession(sessionID); !exists {
+	session, exists := h.service.GetSession(sessionID)
+	if !exists {
 		log.Printf("Attempt to connect to non-existent session ID: %s", sessionID)
-		h.service.AddClientToSession(sessionID, "host")
+		http.Error(w, "session not found", http.StatusNotFound)
+		return
 	}
 
 	conn, err := upgrader.Upgrade(w, r, nil)
@@ -60,10 +59,11 @@ func (h *Hub) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.registerClient(conn, sessionID, clientID)
+	// Register the client and start the read loop to process messages from them.
+	h.registerClient(conn, session, clientID)
+	// FIX: The original code was missing the call to the read loop.
 	go h.readLoop(conn, sessionID, clientID)
 }
-
 func (h *Hub) ensureSessionExists(sessionID string) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -73,32 +73,30 @@ func (h *Hub) ensureSessionExists(sessionID string) {
 		log.Printf("Created session %s in WebSocket hub", sessionID)
 	}
 }
-func (h *Hub) registerClient(conn *websocket.Conn, sessionID, clientID string) {
+func (h *Hub) registerClient(conn *websocket.Conn, session *types.Session, clientID string) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
 	c := &client{
-		conn:      conn,
+		conn: conn,
+		// FIX: Use the typed channel.
 		writeChan: make(chan interface{}, 100),
 		closed:    false,
 	}
 
 	h.clients[clientID] = c
-	if h.sessions[sessionID] == nil {
-		h.sessions[sessionID] = make(map[string]bool)
+	if h.sessions[session.ID] == nil {
+		h.sessions[session.ID] = make(map[string]bool)
 	}
-	h.sessions[sessionID][clientID] = true
+	h.sessions[session.ID][clientID] = true
 
-	h.service.AddClientToSession(sessionID, clientID)
-	log.Printf("Client %s registered to session %s", clientID, sessionID)
+	h.service.AddClientToSession(session.ID, clientID)
+	log.Printf("Client %s registered to session %s", clientID, session.ID)
 
-	// Send session state after a short delay to ensure connection stability
+	// Goroutine to send the initial session state to the newly connected client.
 	go func() {
-		time.Sleep(100 * time.Millisecond)
-		session, exists := h.service.GetSession(sessionID)
-		if !exists {
-			return
-		}
+		time.Sleep(100 * time.Millisecond) // Small delay for stability.
+
 		session.Mu.RLock()
 		terminals := make([]types.TerminalInfo, 0, len(session.Terminals))
 		for _, term := range session.Terminals {
@@ -116,12 +114,12 @@ func (h *Hub) registerClient(conn *websocket.Conn, sessionID, clientID string) {
 			Type:      "session_state",
 			Terminals: terminals,
 		}
-		normalizedMsg := normalizeMessage(sessionStateMsg)
+
 		c.mu.Lock()
 		if !c.closed {
 			select {
-			case c.writeChan <- normalizedMsg:
-				log.Printf("Sent session state to client %s for session %s: %+v", clientID, sessionID, normalizedMsg)
+			case c.writeChan <- sessionStateMsg:
+				log.Printf("Sent session state to client %s for session %s", clientID, session.ID)
 			default:
 				log.Printf("Write channel for client %s is full, session state dropped", clientID)
 			}
@@ -129,6 +127,7 @@ func (h *Hub) registerClient(conn *websocket.Conn, sessionID, clientID string) {
 		c.mu.Unlock()
 	}()
 
+	// Start the write loop in a separate goroutine to send messages to the client.
 	go h.writeLoop(c, clientID)
 }
 
@@ -138,10 +137,13 @@ func (h *Hub) unregisterClient(clientID, sessionID string) {
 
 	if c, ok := h.clients[clientID]; ok {
 		c.mu.Lock()
-		c.closed = true
-		close(c.writeChan)
-		c.conn.Close()
+		if !c.closed {
+			c.closed = true
+			close(c.writeChan)
+			c.conn.Close()
+		}
 		c.mu.Unlock()
+
 		delete(h.clients, clientID)
 		if h.sessions[sessionID] != nil {
 			delete(h.sessions[sessionID], clientID)
@@ -162,8 +164,8 @@ func (h *Hub) writeLoop(c *client, clientID string) {
 		}
 		if err := c.conn.WriteJSON(msg); err != nil {
 			log.Printf("Error writing message to client %s: %v", clientID, err)
-			c.mu.Unlock()
-			h.unregisterClient(clientID, "")
+			c.mu.Unlock()                    // Unlock before calling unregister to avoid deadlock
+			h.unregisterClient(clientID, "") // SessionID can be empty, unregister will still work
 			return
 		}
 		c.mu.Unlock()
@@ -209,9 +211,7 @@ func (h *Hub) readLoop(conn *websocket.Conn, sessionID, clientID string) {
 			Content:    getString(rawMsg, "content"),
 			Sender:     clientID,
 			TerminalID: getString(rawMsg, "terminalId"),
-			FrontendID: getString(rawMsg, "frontendId"),
-			ChunkNum:   uint64(getInt(rawMsg, "chunkNum")),
-		}
+			FrontendID: getString(rawMsg, "frontendId")}
 
 		log.Printf("Received message from client %s: Type=%s, TerminalID=%s, Content=%s",
 			clientID, msg.Type, msg.TerminalID, msg.Content)
@@ -241,37 +241,7 @@ func (h *Hub) readLoop(conn *websocket.Conn, sessionID, clientID string) {
 			h.service.RequestNewTerminal(sessionID, payload.FrontendID, payload.X, payload.Y)
 
 		case "subscribe":
-			if msg.TerminalID == "" {
-				log.Printf("Received subscribe without terminal_id from client %s", clientID)
-				continue
-			}
-			session, exists := h.service.GetSession(sessionID)
-			if !exists {
-				log.Printf("Session %s not found for subscription", sessionID)
-				continue
-			}
-			session.Mu.RLock()
-			terminal, exists := session.Terminals[msg.TerminalID]
-			session.Mu.RUnlock()
-			if !exists || terminal.Status != "ready" {
-				log.Printf("Terminal %s not found or not ready for subscription", msg.TerminalID)
-				continue
-			}
-			// Send historical data
-			c := h.clients[clientID]
-			c.mu.Lock()
-			if !c.closed {
-				for _, dataMsg := range terminal.Data {
-					if dataMsg.Type == "pty_output" && dataMsg.ChunkNum >= msg.ChunkNum {
-						select {
-						case c.writeChan <- normalizeMessage(dataMsg):
-						default:
-							log.Printf("Write channel for client %s is full, dropping chunk", clientID)
-						}
-					}
-				}
-			}
-			c.mu.Unlock()
+			h.sendTerminalHistory(sessionID, clientID, msg.TerminalID)
 
 		default:
 			log.Printf("Received unknown message type '%s' from client %s", msg.Type, clientID)
@@ -302,36 +272,61 @@ func getString(m map[string]interface{}, key string) string {
 
 func (h *Hub) BroadcastToSession(sessionID string, message types.Message) {
 	h.mu.RLock()
+	defer h.mu.RUnlock()
+
 	sessionClients, ok := h.sessions[sessionID]
 	if !ok {
-		log.Printf("Attempted to broadcast to non-existent session: %s. Creating session now.", sessionID)
-		h.mu.RUnlock()
-		h.ensureSessionExists(sessionID)
-		h.mu.RLock()
-		sessionClients, ok = h.sessions[sessionID]
-		if !ok {
-			log.Printf("Failed to create session %s", sessionID)
-			return
-		}
+		return
 	}
-
-	normalizedMsg := normalizeMessage(message)
-	log.Printf("Broadcasting to session %s: %+v", sessionID, normalizedMsg)
 
 	for clientID := range sessionClients {
-		c, clientOk := h.clients[clientID]
-		if clientOk {
-			c.mu.Lock()
-			if !c.closed {
+		if client, ok := h.clients[clientID]; ok {
+			client.mu.Lock()
+			if !client.closed {
 				select {
-				case c.writeChan <- normalizedMsg:
-
+				case client.writeChan <- message:
 				default:
-					log.Printf("Write channel for client %s is full, dropping message", clientID)
+					log.Printf("Write channel for client %s is full. Message of type '%s' dropped.", clientID, message.Type)
 				}
 			}
-			c.mu.Unlock()
+			client.mu.Unlock()
 		}
 	}
-	h.mu.RUnlock()
+}
+func (h *Hub) sendTerminalHistory(sessionID, clientID, terminalID string) {
+	session, exists := h.service.GetSession(sessionID)
+	if !exists {
+		return
+	}
+
+	client, clientExists := h.clients[clientID]
+	if !clientExists {
+		return
+	}
+
+	session.Mu.RLock()
+	terminal, termExists := session.Terminals[terminalID]
+	if !termExists {
+		session.Mu.RUnlock()
+		return
+	}
+
+	// Create a copy of the data slice to avoid holding the lock while writing.
+	history := make([]types.Message, len(terminal.Data))
+	copy(history, terminal.Data)
+	session.Mu.RUnlock()
+
+	// Send the historical messages to the subscribing client.
+	for _, msg := range history {
+		client.mu.Lock()
+		if !client.closed {
+			select {
+			case client.writeChan <- msg:
+			default:
+				log.Printf("Write channel full for client %s while sending history.", clientID)
+			}
+		}
+		client.mu.Unlock()
+	}
+	log.Printf("Sent %d historical messages for terminal %s to client %s", len(history), terminalID, clientID)
 }

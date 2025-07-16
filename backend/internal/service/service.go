@@ -93,14 +93,25 @@ func (s *ShellSyncService) Stream(stream pb.ShellSync_StreamServer) error {
 			switch payload := msgFromAgent.Payload.(type) {
 			case *pb.ClientUpdate_PtyOutput:
 				output := payload.PtyOutput
-				if s.hub != nil {
-					message := types.Message{
-						Type:       "pty_output",
-						TerminalID: output.GetTerminalId(),
-						Content:    string(output.GetData()),
-						Sender:     "pty_agent",
-						ChunkNum:   uint64(time.Now().UnixNano()), // Assign a chunk number
+				terminalID := output.GetTerminalId()
+
+				message := types.Message{
+					Type:       "pty_output",
+					TerminalID: terminalID,
+					Content:    string(output.GetData()),
+					Sender:     "pty_agent",
+				}
+
+				session.Mu.Lock()
+				if terminal, exists := session.Terminals[terminalID]; exists {
+					if len(terminal.Data) >= 1000 {
+						terminal.Data = terminal.Data[1:]
 					}
+					terminal.Data = append(terminal.Data, message)
+				}
+				session.Mu.Unlock()
+
+				if s.hub != nil {
 					s.hub.BroadcastToSession(sessionID, message)
 				}
 			case *pb.ClientUpdate_TerminalCreatedResponse:
@@ -108,12 +119,11 @@ func (s *ShellSyncService) Stream(stream pb.ShellSync_StreamServer) error {
 				log.Printf("Session [%s]: Agent confirmed creation of terminal [%s]", sessionID, resp.GetTerminalId())
 
 				session.Mu.Lock()
-				terminal, exists := session.Terminals[resp.GetTerminalId()]
-				if !exists {
-					terminal = &types.Terminal{ID: resp.GetTerminalId(), CreatedAt: time.Now()}
-					session.Terminals[resp.GetTerminalId()] = terminal
+				frontendID := ""
+				if terminal, exists := session.Terminals[resp.GetTerminalId()]; exists {
+					terminal.Status = "ready"
+					frontendID = terminal.FrontendID
 				}
-				frontendID := terminal.FrontendID
 				session.Mu.Unlock()
 
 				message := types.Message{
@@ -126,11 +136,10 @@ func (s *ShellSyncService) Stream(stream pb.ShellSync_StreamServer) error {
 				errMsg := payload.TerminalError
 				log.Printf("Session [%s]: Agent reported error for terminal [%s]: %s", sessionID, errMsg.GetTerminalId(), errMsg.GetError())
 				session.Mu.Lock()
-				terminal, exists := session.Terminals[errMsg.GetTerminalId()]
 				frontendID := ""
-				if exists {
+				if terminal, exists := session.Terminals[errMsg.GetTerminalId()]; exists {
+					terminal.Status = "error"
 					frontendID = terminal.FrontendID
-					delete(session.Terminals, errMsg.GetTerminalId())
 				}
 				session.Mu.Unlock()
 				if s.hub != nil {
@@ -258,7 +267,17 @@ func (s *ShellSyncService) GetSession(sessionID string) (*types.Session, bool) {
 	return session, exists
 }
 func (s *ShellSyncService) AddClientToSession(sessionID, clientID string) bool {
-
+	s.mu.RLock()
+	session, exists := s.sessions[sessionID]
+	s.mu.RUnlock()
+	if !exists {
+		return false
+	}
+	session.Mu.Lock()
+	defer session.Mu.Unlock()
+	if _, ok := session.Clients[clientID]; !ok {
+		session.Clients[clientID] = &types.Client{ID: clientID, LastSeen: time.Now()}
+	}
 	return true
 }
 func (s *ShellSyncService) GetSessions() []*types.Session {

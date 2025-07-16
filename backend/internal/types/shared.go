@@ -24,7 +24,6 @@ type Message struct {
 	FrontendID string         `json:"frontend_id,omitempty"`
 	Error      string         `json:"error,omitempty"`
 	Terminals  []TerminalInfo `json:"terminals,omitempty"`
-	ChunkNum   uint64         `json:"chunk_num,omitempty"` // For subscribing to terminal data
 }
 
 type TerminalInfo struct {
