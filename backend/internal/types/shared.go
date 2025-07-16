@@ -8,7 +8,7 @@ import (
 type PTYService interface {
 	ForwardInputToAgent(sessionID, terminalID string, input []byte)
 
-	RequestNewTerminal(sessionID, frontendID string, x int32, y int32)
+	RequestNewTerminal(sessionID, frontendID string, x float32, y float32)
 	GetSession(sessionID string) (*Session, bool)
 	GetSessions() []*Session
 	AddClientToSession(sessionID, clientID string) bool
@@ -24,14 +24,17 @@ type Message struct {
 	FrontendID string         `json:"frontend_id,omitempty"`
 	Error      string         `json:"error,omitempty"`
 	Terminals  []TerminalInfo `json:"terminals,omitempty"`
+	Status     string         `json:"status,omitempty"`
+	X          float32        `json:"x,omitempty"`
+	Y          float32        `json:"y,omitempty"`
 }
 
 type TerminalInfo struct {
-	TerminalID string `json:"terminal_id"`
-	FrontendID string `json:"frontend_id"`
-	Status     string `json:"status"`
-	X          int32  `json:"x"` // Add position for canvas
-	Y          int32  `json:"y"`
+	TerminalID string  `json:"terminal_id"`
+	FrontendID string  `json:"frontend_id"`
+	Status     string  `json:"status"`
+	X          float32 `json:"x"` // Add position for canvas
+	Y          float32 `json:"y"`
 }
 
 type Terminal struct {
@@ -39,8 +42,8 @@ type Terminal struct {
 	FrontendID string
 	CreatedAt  time.Time
 	Status     string
-	X          int32 // Add position
-	Y          int32
+	X          float32 // Add position
+	Y          float32
 	Data       []Message // Store terminal output for new clients
 }
 

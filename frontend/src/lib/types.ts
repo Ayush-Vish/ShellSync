@@ -16,6 +16,8 @@ export interface SocketMessage {
     sender?: string;
     terminals?: { terminalId: string; frontendId: string; status: string; x: number; y: number }[];
     chunkNum?: number;
+    x?: number;
+    y?: number;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

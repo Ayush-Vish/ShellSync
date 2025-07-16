@@ -227,8 +227,8 @@ func (h *Hub) readLoop(conn *websocket.Conn, sessionID, clientID string) {
 		case "create_terminal":
 			var payload struct {
 				FrontendID string `json:"frontendId"`
-				X          int32  `json:"x"`
-				Y          int32  `json:"y"`
+				X          float32  `json:"x"`
+				Y          float32  `json:"y"`
 			}
 			if err := json.Unmarshal([]byte(msg.Content), &payload); err != nil {
 				log.Printf("Error unmarshalling create_terminal payload from client %s: %v", clientID, err)

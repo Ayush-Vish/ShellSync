@@ -117,7 +117,6 @@ func (x *CreateResponse) GetFrontendUrl() string {
 	return ""
 }
 
-// --- Messages from Agent (Client) to Server ---
 type ClientUpdate struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Types that are valid to be assigned to Payload:
@@ -217,7 +216,7 @@ type ClientUpdate_PtyOutput struct {
 }
 
 type ClientUpdate_TerminalCreatedResponse struct {
-	TerminalCreatedResponse *TerminalCreatedResponse `protobuf:"bytes,3,opt,name=terminal_created_response,json=terminalCreatedResponse,proto3,oneof"` // Agent confirms terminal creation
+	TerminalCreatedResponse *TerminalCreatedResponse `protobuf:"bytes,3,opt,name=terminal_created_response,json=terminalCreatedResponse,proto3,oneof"`
 }
 
 type ClientUpdate_TerminalError struct {

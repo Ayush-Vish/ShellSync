@@ -1,4 +1,4 @@
-import { SocketMessage } from '@/lib/types';
+import { normalizeMessage, SocketMessage } from '@/lib/types';
 import { useEffect, useRef, useCallback, useState } from 'react';
 export interface TerminalInfo {
   id: string;
@@ -7,18 +7,6 @@ export interface TerminalInfo {
   error?: string;
 }
 
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function normalizeMessage(data: any): SocketMessage {
-  return {
-    type: data.type,
-    content: data.content,
-    terminalId: data.terminalId || data.terminal_id, 
-    frontendId: data.frontendId || data.frontend_id, 
-    error: data.error,
-    sender: data.sender,
-  };
-}
 
 export function useTerminalSocket(
     sessionId: string,
