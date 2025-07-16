@@ -8,35 +8,28 @@ export interface CanvasItem {
 }
 
 export interface SocketMessage {
-  type:
-    | "terminal_created"
-    | "pty_output"
-    | "pty_input"
-    | "create_terminal"
-    | "terminal_error";
-  content?: string;
-  terminalId?: string;
-  frontendId?: string;
-  error?: string;
-  sender?: string;
+    type: 'terminal_created' | 'pty_output' | 'pty_input' | 'create_terminal' | 'terminal_error' | 'session_state' | 'subscribe';
+    content?: string;
+    terminalId?: string;
+    frontendId?: string;
+    error?: string;
+    sender?: string;
+    terminals?: { terminalId: string; frontendId: string; status: string; x: number; y: number }[];
+    chunkNum?: number;
 }
 
-export interface TerminalInfo {
-  id: string;
-  status: "creating" | "ready" | "error";
-  createdAt?: Date;
-  error?: string;
-}
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function normalizeMessage(data: any): SocketMessage {
-  return {
-    type: data.type,
-    content: data.content,
-    terminalId: data.terminalId || data.terminal_id,
-    frontendId: data.frontendId || data.frontend_id,
-    error: data.error,
-    sender: data.sender,
-  };
+    return {
+        type: data.type,
+        content: data.content,
+        terminalId: data.terminalId || data.terminal_id,
+        frontendId: data.frontendId || data.frontend_id,
+        error: data.error,
+        sender: data.sender,
+        terminals: data.terminals,
+        chunkNum: data.chunkNum,
+    };
 }
 export interface DraggableTerminalRef {
   write: (data: string) => void;

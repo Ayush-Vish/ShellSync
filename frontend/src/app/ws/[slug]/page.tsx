@@ -2,69 +2,22 @@
 
 import React, { useState, useRef, useCallback, createRef } from 'react';
 import InfiniteCanvas, { CanvasRef } from '@/components/canvas/InfiniteCanvas';
-import {  Maximize, TerminalIcon, Loader2 } from 'lucide-react';
 import DraggableTerminal, { DraggableTerminalRef } from "@/components/terminal/DraggableTerminal";
 import { useParams, useSearchParams } from "next/navigation";
-import { useTerminalSocket, SocketMessage } from "@/hooks/useSocket";
+import { useTerminalSocket } from "@/hooks/useSocket";
+import Toolbar from '@/components/canvas/Toolbar';
+import { CanvasItem, SocketMessage } from '@/lib/types';
 
 
-export interface CanvasItem {
-    id: string;
-    position: { x: number; y: number };
-    color: string;
-    terminalId?: string;
-    status: 'creating' | 'ready' | 'error';
-    error?: string;
-}
 
-const Toolbar = ({
-                     onAddItem,
-                     onReset,
-                     isConnected,
-                     isCreating
-                 }: {
-    onAddItem: () => void;
-    onReset: () => void;
-    isConnected: boolean;
-    isCreating: boolean;
-}) => (
-    <div className="absolute top-4 left-4 z-10 flex items-center gap-2">
-        <div className={`w-3 h-3 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}
-             title={isConnected ? 'Connected' : 'Disconnected'} />
-
-        <button
-            onClick={onAddItem}
-            disabled={!isConnected || isCreating}
-            className="flex items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors shadow-lg"
-        >
-            {isCreating ? (
-                <Loader2 size={18} className="animate-spin" />
-            ) : (
-                <TerminalIcon size={18} />
-            )}
-            {isCreating ? 'Creating...' : 'Add Terminal'}
-        </button>
-
-        <button
-            onClick={onReset}
-            className="flex p-2 bg-neutral-700 text-white rounded-md hover:bg-neutral-600 transition-colors shadow-lg"
-            title="Reset View"
-        >
-            <Maximize size={18} />
-        </button>
-    </div>
-);
 
 
 export default function CanvasPage() {
     const [items, setItems] = useState<CanvasItem[]>([]);
     const [isCreatingTerminal, setIsCreatingTerminal] = useState(false);
 
-    // 3. REMOVE the latestMessage state. It's no longer the right pattern.
-    // const [latestMessage, setLatestMessage] = useState<SocketMessage | null>(null);
 
     const canvasRef = useRef<CanvasRef>(null);
-    // 4. Create a ref to hold a map of terminal IDs to their component refs.
     const terminalRefs = useRef(new Map<string, React.RefObject<DraggableTerminalRef>>());
 
     const params = useParams();
@@ -76,9 +29,34 @@ export default function CanvasPage() {
 
     const handleSocketMessage = useCallback((message: SocketMessage) => {
         console.log('Canvas received socket message:', message);
-        // setLatestMessage(message); // REMOVE THIS
+        
+        if (message.type === 'session_state' && message.terminals) {
+        setItems(prevItems => {
+            const existingIds = new Set(prevItems.map(item => item.id));
+            const newItems = (message.terminals || [])
+                .filter(term => !existingIds.has(term.frontendId))
+                .map(term => ({
+                    id: term.frontendId,
+                    position: { x: term.x, y: term.y },
+                    color: "#4bd2f3",
+                    terminalId: term.terminalId,
+                    status: term.status as 'creating' | 'ready' | 'error',
+                }));
 
-        // This is the new, direct way to handle output
+            newItems.forEach(item => {
+                if (item.terminalId && !terminalRefs.current.has(item.terminalId)) {
+                    terminalRefs.current.set(item.terminalId, createRef() as React.RefObject<DraggableTerminalRef>);
+                    // Subscribe to terminal data
+                    sendMessage('subscribe', undefined, item.terminalId, 0);
+                }
+            });
+            return [...prevItems, ...newItems];
+        });
+        return;
+    }
+
+
+
         if (message.type === 'pty_output' && message.terminalId && message.content) {
             const termRef = terminalRefs.current.get(message.terminalId);
             if (termRef?.current) {
@@ -156,7 +134,7 @@ export default function CanvasPage() {
 
         setItems(prevItems => [...prevItems, newItem]);
 
-        const payload = { frontendId };
+        const payload = { frontendId, x : newItem.position.x, y: newItem.position.y };
         sendMessage('create_terminal', JSON.stringify(payload));
 
     }, [isConnected, isCreatingTerminal, sendMessage]);

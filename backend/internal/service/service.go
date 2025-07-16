@@ -99,6 +99,7 @@ func (s *ShellSyncService) Stream(stream pb.ShellSync_StreamServer) error {
 						TerminalID: output.GetTerminalId(),
 						Content:    string(output.GetData()),
 						Sender:     "pty_agent",
+						ChunkNum:   uint64(time.Now().UnixNano()), // Assign a chunk number
 					}
 					s.hub.BroadcastToSession(sessionID, message)
 				}
@@ -195,7 +196,7 @@ func (s *ShellSyncService) ForwardInputToAgent(sessionID, terminalID string, inp
 	}
 }
 
-func (s *ShellSyncService) RequestNewTerminal(sessionID, frontendID string) {
+func (s *ShellSyncService) RequestNewTerminal(sessionID, frontendID string, x, y int32) {
 	s.mu.RLock()
 	session, ok := s.sessions[sessionID]
 	s.mu.RUnlock()
@@ -223,6 +224,10 @@ func (s *ShellSyncService) RequestNewTerminal(sessionID, frontendID string) {
 		ID:         backendTerminalID,
 		CreatedAt:  time.Now(),
 		FrontendID: frontendID,
+		Status:     "creating",
+		X:          x,
+		Y:          y,
+		Data:       make([]types.Message, 0),
 	}
 	session.Mu.Unlock()
 	log.Printf("Requesting agent to create terminal with ID %s for session %s", backendTerminalID, sessionID)
@@ -232,7 +237,6 @@ func (s *ShellSyncService) RequestNewTerminal(sessionID, frontendID string) {
 		TerminalID: backendTerminalID,
 		FrontendID: frontendID,
 	}:
-
 	default:
 		log.Printf("Agent input channel for session %s is full. Terminal creation dropped.", sessionID)
 		if s.hub != nil {
@@ -244,21 +248,7 @@ func (s *ShellSyncService) RequestNewTerminal(sessionID, frontendID string) {
 			}
 			s.hub.BroadcastToSession(sessionID, errorMsg)
 		}
-		return
 	}
-
-	//// Pre-register the terminal in session state
-	//session.Mu.Lock()
-	//if session.Terminals == nil {
-	//	session.Terminals = make(map[string]*types.Terminal)
-	//}
-	//session.Terminals[backendTerminalID] = &types.Terminal{
-	//	ID:        backendTerminalID,
-	//	CreatedAt: time.Now(),
-	//}
-	//session.Mu.Unlock()
-	//
-	//log.Printf("Terminal %s registered in session state. Waiting for agent confirmation.", backendTerminalID)
 }
 
 func (s *ShellSyncService) GetSession(sessionID string) (*types.Session, bool) {
