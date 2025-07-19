@@ -38,3 +38,4 @@ build-client:
 	GOOS=windows GOARCH=arm64 go build -o bin/client-windows-arm64.exe ./client
 	
 	@echo "Builds completed. Binaries are in the bin/ directory."
+

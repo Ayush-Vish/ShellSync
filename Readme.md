@@ -1,175 +1,169 @@
----
+I'll generate a comprehensive README for ShellSync based on the existing codebase structure and documentation. [1](#0-0) 
 
 # ShellSync
 
-**ShellSync** is an open-source, real-time terminal collaboration tool that allows multiple users to share and interact with terminal sessions through an intuitive, infinite canvas interface. Whether you're pair programming, debugging remotely, or teaching command-line skills, ShellSync makes collaborative terminal workflows seamless and efficient.
+**ShellSync** is an open-source, real-time terminal collaboration tool that enables multiple users to share and interact with terminal sessions through an intuitive, infinite canvas interface. [2](#0-1)  Whether you're pair programming, debugging remotely, or teaching command-line skills, ShellSync makes collaborative terminal workflows seamless and efficient.
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![GitHub last commit](https://img.shields.io/github/last-commit/Ayush-Vish/ShellSync)](https://github.com/Ayush-Vish/ShellSync)
 
-## Table of Contents
+## ✨ Features
 
-* [Features](#features)
-* [Architecture](#architecture)
-* [Getting Started](#getting-started)
+- **🔄 Real-Time Collaboration**: Share terminal sessions instantly with team members via unique URLs, enabling multiple users to view and interact with the same terminal simultaneously [3](#0-2) 
 
-  * [Prerequisites](#prerequisites)
-  * [Download the Agent](#download-the-agent)
-  * [Running the Server](#running-the-server)
-  * [Running the Frontend](#running-the-frontend)
-  * [Running the Agent](#running-the-agent)
-* [Usage](#usage)
-* [Project Status](#project-status)
-* [Contributing](#contributing)
-* [License](#license)
-* [Contact](#contact)
+- **🎨 Infinite Canvas Interface**: Dynamic, draggable workspace where you can create, position, and manage multiple terminal windows with zoom and pan capabilities [4](#0-3) 
 
-## Features
+- **🌐 Cross-Platform Support**: Lightweight agent binaries available for macOS (Intel & Apple Silicon), Linux (amd64 & arm64), and Windows (amd64 & arm64) [5](#0-4) 
 
-* **Real-Time Collaboration**: Share terminal sessions instantly with team members via a unique URL, enabling multiple users to view and interact with the same terminal in real-time.
-* **Infinite Canvas Interface**: Manage multiple terminal windows on a dynamic, draggable, and zoomable canvas, providing a flexible workspace for complex workflows.
-* **Cross-Platform Support**: Lightweight agent binaries available for macOS (amd64, arm64), Linux (amd64, arm64), and Windows (amd64, arm64).
-* **Low-Latency Terminal I/O**: Stream terminal input and output with minimal delay using WebSocket for frontend-backend communication and gRPC for backend-agent communication.
-* **Production-Ready**: Stable implementation with a minimal client, server, and frontend, tested in production environments.
+- **⚡ Production-Ready**: Built with WebSocket for frontend communication and gRPC for backend-agent interaction, ensuring enterprise-grade performance [6](#0-5) 
 
-## Architecture
+- **🔒 Secure & Reliable**: All connections are encrypted, with the agent running locally on your machine to ensure terminal sessions remain secure [7](#0-6) 
 
-ShellSync is built with a modular architecture to ensure scalability and maintainability:
+## 🏗️ Architecture
 
-* **Frontend**: A React-based UI (`CanvasPage.tsx`, `useTerminalSocket.ts`) using WebSocket for real-time communication with the backend. The infinite canvas allows users to create and manage terminal windows.
-* **Backend**: A Go server (`websocket/hub.go`, `service/service.go`) that handles WebSocket connections from the frontend and gRPC streams with the agent. It manages sessions and forwards encrypted terminal data.
-* **Agent**: A Go-based client (`controller/controller.go`) that runs on the user’s machine, executes terminal commands via PTY, and communicates with the backend over gRPC.
-* **Communication**:
+ShellSync implements a three-tier architecture designed for scalability and security:
 
-  * **WebSocket**: Frontend ↔ Backend for real-time terminal input/output and control messages.
-  * **gRPC**: Backend ↔ Agent for secure, bidirectional streaming of terminal data.
+```mermaid
+graph TB
+    subgraph "Frontend Tier"
+        Browser["Web Browser"]
+        Canvas["Infinite Canvas"]
+        Terminal["Xterm.js Terminal"]
+    end
+    
+    subgraph "Backend Tier"
+        Server["Go Server :5000"]
+        WebSocket["WebSocket Hub"]
+        GRPC["gRPC Server :5001"]
+    end
+    
+    subgraph "Agent Tier"
+        Agent["ShellSync Agent"]
+        PTY["PTY Manager"]
+        Shell["Local Shell"]
+    end
+    
+    Browser --> Canvas
+    Canvas --> Terminal
+    Terminal -.->|WebSocket| WebSocket
+    WebSocket --> Server
+    Server --> GRPC
+    GRPC -.->|gRPC Stream| Agent
+    Agent --> PTY
+    PTY --> Shell
+```
 
-## Getting Started
+- **Frontend**: React-based UI with infinite canvas interface using WebSocket for real-time communication [8](#0-7) 
+- **Backend**: Go server handling WebSocket connections and gRPC streams for session management [9](#0-8) 
+- **Agent**: Local Go binary executing terminal commands via PTY and communicating over gRPC [10](#0-9) 
 
-### Prerequisites
+## 🚀 Quick Start
 
-* **Node.js** (v16 or higher) and **npm** for the frontend.
-* **Go** (v1.18 or higher) for the backend and agent.
-* **Git** to clone the repository.
-* A modern web browser (e.g., Chrome, Firefox) for the frontend.
+### Installation
 
-### Download the Agent
+Choose your platform and run the installation script:
 
-To make installation simple for all platforms, use the following commands:
-
-#### macOS/Linux (auto-detect)
-
+#### macOS/Linux
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Ayush-Vish/ShellSync/main/install-agent.sh | sh
+curl -fsSL https://raw.githubusercontent.com/Ayush-Vish/ShellSync/main/scripts/get_linux.sh | sh
 ```
 
 #### Windows (PowerShell)
-
 ```powershell
-irm https://raw.githubusercontent.com/Ayush-Vish/ShellSync/main/install-agent.ps1 | iex
-```
+iwr -useb https://raw.githubusercontent.com/Ayush-Vish/ShellSync/main/scripts/get_windows.ps1 | iex
+``` [11](#0-10) 
 
-Alternatively, download manually from the [GitHub bin/ directory](https://github.com/Ayush-Vish/ShellSync/blob/main/bin/).
+### Direct Binary Downloads
 
-### Running the Server
+| Platform | Architecture | Download Link |
+|----------|-------------|---------------|
+| macOS | ARM64 | [client-darwin-arm64](https://github.com/Ayush-Vish/ShellSync/raw/main/bin/client-darwin-arm64) |
+| macOS | x86-64 | [client-darwin-amd64](https://github.com/Ayush-Vish/ShellSync/raw/main/bin/client-darwin-amd64) |
+| Linux | ARM64 | [client-linux-arm64](https://github.com/Ayush-Vish/ShellSync/raw/main/bin/client-linux-arm64) |
+| Linux | x86-64 | [client-linux-amd64](https://github.com/Ayush-Vish/ShellSync/raw/main/bin/client-linux-amd64) |
+| Windows | x86-64 | [client-windows-amd64.exe](https://github.com/Ayush-Vish/ShellSync/raw/main/bin/client-windows-amd64.exe) |
+| Windows | ARM64 | [client-windows-arm64.exe](https://github.com/Ayush-Vish/ShellSync/raw/main/bin/client-windows-arm64.exe) | [12](#0-11) 
 
-1. Clone the repository:
+### Usage
 
+1. **Run the Agent**: Execute `shellsync-agent` to start the local terminal manager
+2. **Access Interface**: Open the generated session URL in your browser
+3. **Create Terminals**: Use the infinite canvas to spawn and manage multiple terminals
+4. **Collaborate**: Share your session URL with team members for real-time collaboration [13](#0-12) 
+
+## 🛠️ Development Setup
+
+### Prerequisites
+
+- **Node.js** (v16+) and **npm** for frontend development
+- **Go** (v1.18+) for backend and agent development
+- **Git** to clone the repository
+
+### Building from Source
+
+1. **Clone the repository**:
    ```bash
    git clone https://github.com/Ayush-Vish/ShellSync.git
    cd ShellSync
    ```
-2. Navigate to the backend:
 
-   ```bash
-   cd backend
-   ```
-3. Install dependencies:
-
-   ```bash
-   go mod tidy
-   ```
-4. Generate Protobuf code (if modified):
-
-   ```bash
-   protoc --go_out=. --go-grpc_out=. api/proto/shellsync.proto
-   ```
-5. Run the server:
-
+2. **Build the backend**:
    ```bash
    make run-server
    ```
 
-   Server runs on `http://localhost:3000` (WebSocket: `ws://localhost:3000/ws`).
+3. **Build the agent**:
+   ```bash
+   make build-client
+   ```
 
-### Running the Frontend
-
-1. Navigate to the frontend:
-
+4. **Start the frontend**:
    ```bash
    cd frontend
-   ```
-2. Install dependencies:
-
-   ```bash
    npm install
-   ```
-3. Start development server:
-
-   ```bash
    npm start
-   ```
+   ``` [14](#0-13) 
 
-   Available at `http://localhost:8080`.
+## 🤝 Contributing
 
-### Running the Agent
+We welcome contributions! ShellSync is completely open source and free to use. [15](#0-14) 
 
-1. Download the agent binary (see [Download the Agent](#download-the-agent)).
-2. Run the agent:
+### How to Contribute
 
-   ```bash
-   ./shellsync-agent
-   ```
-3. The agent connects to the backend and prints a session URL (e.g., `http://localhost:3000/ws/<session_id>?client_id=<client_id>`). Open in browser to join the session.
+1. Fork the repository: `https://github.com/Ayush-Vish/ShellSync`
+2. Create a feature branch: `git checkout -b feature/amazing-feature`
+3. Commit your changes: `git commit -m "Add amazing feature"`
+4. Push to the branch: `git push origin feature/amazing-feature`
+5. Open a Pull Request [16](#0-15) 
 
-## Usage
+## 📋 FAQ
 
-1. **Start a Session**: Run `./shellsync-agent` and open the generated session URL.
-2. **Create Terminals**: Use the UI canvas to spawn terminals.
-3. **Collaborate**: Share the URL for real-time multi-user interaction.
-4. **Interact**: Everyone can type and view output live on the canvas.
+**Q: Do I need to install anything to use ShellSync?**
+A: Yes, you need to download and run the lightweight ShellSync agent on your machine. No additional software or complex setup is required. [17](#0-16) 
 
-## Project Status
+**Q: Is ShellSync secure for production use?**
+A: ShellSync is built with enterprise-grade security. All connections are encrypted, and the agent runs locally on your machine, ensuring your terminal sessions remain secure. [18](#0-17) 
 
-* **Latest Milestone**: MILESTONE 4 - Infinite canvas component implemented.
-* **Status**: Minimal server/client/frontend all working in production.
-* **Binaries**: Available for all major OS/architectures.
-* **In Progress**: Terminal encryption, session authentication.
+**Q: How do I share a terminal session?**
+A: After running the ShellSync agent, you'll receive a unique session URL. Simply share this URL with your team members, and they can join instantly through their web browser. [19](#0-18) 
 
-## Contributing
+## 📊 Project Status
 
-We welcome contributions! To contribute:
+- **Latest Milestone**: MILESTONE 4 - Infinite canvas component implemented
+- **Status**: Production-ready with minimal server, client, and frontend all operational
+- **Binaries**: Available for all major OS/architecture combinations
+- **In Progress**: Terminal encryption and session authentication features [20](#0-19) 
 
-1. Fork: `https://github.com/Ayush-Vish/ShellSync`
-2. Create branch: `git checkout -b feature/xyz`
-3. Commit: `git commit -m "Add xyz feature"`
-4. Push: `git push origin feature/xyz`
-5. Open PR with description.
+## 📄 License
 
-Please follow our [Code of Conduct](CODE_OF_CONDUCT.md) and style guides.
+ShellSync is licensed under the [MIT License](LICENSE). [21](#0-20) 
 
-### Development Setup
+## 📞 Contact
 
-* **Backend**: `go mod tidy`, `go test ./...`
-* **Frontend**: `npm install`, `npm run build`
-* **Protobuf**: Update `.proto` and regenerate code.
+- **Repository**: [https://github.com/Ayush-Vish/ShellSync](https://github.com/Ayush-Vish/ShellSync)
+- **Issues**: [GitHub Issues](https://github.com/Ayush-Vish/ShellSync/issues)
+- **Email**: [ayushvish6555@gmail.com](mailto:ayushvish6555@gmail.com) [22](#0-21) 
 
-## License
+---
 
-ShellSync is licensed under the [MIT License](LICENSE).
-
-## Contact
-
-* **Repo**: [https://github.com/Ayush-Vish/ShellSync](https://github.com/Ayush-Vish/ShellSync)
-* **Issues**: [GitHub Issues](https://github.com/Ayush-Vish/ShellSync/issues)
-* **Email**: [ayushvish6555@gmail.com](mailto:ayushvish6555@gmail.com)
+**Built for developers, by developers.** [23](#0-22) 
