@@ -71,7 +71,7 @@ curl -fsSL https://raw.githubusercontent.com/Ayush-Vish/ShellSync/main/scripts/g
 #### Windows (PowerShell)
 ```powershell
 iwr -useb https://raw.githubusercontent.com/Ayush-Vish/ShellSync/main/scripts/get_windows.ps1 | iex
-``` [11](#0-10) 
+```
 
 ### Direct Binary Downloads
 
