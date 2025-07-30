@@ -14,7 +14,6 @@ export default function CanvasPage() {
 
     const canvasRef = useRef<CanvasRef>(null);
     const terminalRefs = useRef(new Map<string, React.RefObject<DraggableTerminalRef | null>>());
-    // Ref to track which terminals we have already sent a 'subscribe' message for.
     const subscribedTerminalIds = useRef(new Set<string>());
 
     const params = useParams();
@@ -23,9 +22,6 @@ export default function CanvasPage() {
     const [clientId] = useState(() =>
         searchParams.get('client_id') || `client_${Math.random().toString(36).substr(2, 9)}`
     );
-
-    // FIX: Removed the dependency on `sendMessage` to break the circular dependency.
-    // Subscription logic is now handled in a separate useEffect.
     const handleSocketMessage = useCallback((message: SocketMessage) => {
         console.log('Canvas received socket message:', message);
 
@@ -42,7 +38,6 @@ export default function CanvasPage() {
                         status: term.status as 'creating' | 'ready' | 'error',
                     }));
                 
-                // Ensure refs are created for terminals loaded from session state.
                 newItems.forEach(item => {
                     if (item.terminalId && !terminalRefs.current.has(item.terminalId)) {
                         terminalRefs.current.set(item.terminalId, createRef<DraggableTerminalRef>());
@@ -118,15 +113,12 @@ export default function CanvasPage() {
         handleSocketMessage
     );
 
-    // FIX: New useEffect to handle subscriptions.
-    // This runs whenever the list of items changes.
+
     useEffect(() => {
         items.forEach(item => {
-            // If an item has a terminalId but we haven't subscribed to it yet...
             if (item.terminalId && !subscribedTerminalIds.current.has(item.terminalId)) {
                 console.log(`Subscribing to terminal history for ${item.terminalId}`);
                 sendMessage('subscribe', undefined, item.terminalId);
-                // Mark it as subscribed to prevent duplicate messages.
                 subscribedTerminalIds.current.add(item.terminalId);
             }
         });
