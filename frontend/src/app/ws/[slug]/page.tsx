@@ -1,71 +1,20 @@
 'use client';
 
-import React, { useState, useRef, useCallback, createRef } from 'react';
+import React, { useState, useRef, useCallback, createRef, useEffect } from 'react';
 import InfiniteCanvas, { CanvasRef } from '@/components/canvas/InfiniteCanvas';
-import {  Maximize, TerminalIcon, Loader2 } from 'lucide-react';
 import DraggableTerminal, { DraggableTerminalRef } from "@/components/terminal/DraggableTerminal";
 import { useParams, useSearchParams } from "next/navigation";
-import { useTerminalSocket, SocketMessage } from "@/hooks/useSocket";
-
-
-export interface CanvasItem {
-    id: string;
-    position: { x: number; y: number };
-    color: string;
-    terminalId?: string;
-    status: 'creating' | 'ready' | 'error';
-    error?: string;
-}
-
-const Toolbar = ({
-                     onAddItem,
-                     onReset,
-                     isConnected,
-                     isCreating
-                 }: {
-    onAddItem: () => void;
-    onReset: () => void;
-    isConnected: boolean;
-    isCreating: boolean;
-}) => (
-    <div className="absolute top-4 left-4 z-10 flex items-center gap-2">
-        <div className={`w-3 h-3 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}
-             title={isConnected ? 'Connected' : 'Disconnected'} />
-
-        <button
-            onClick={onAddItem}
-            disabled={!isConnected || isCreating}
-            className="flex items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors shadow-lg"
-        >
-            {isCreating ? (
-                <Loader2 size={18} className="animate-spin" />
-            ) : (
-                <TerminalIcon size={18} />
-            )}
-            {isCreating ? 'Creating...' : 'Add Terminal'}
-        </button>
-
-        <button
-            onClick={onReset}
-            className="flex p-2 bg-neutral-700 text-white rounded-md hover:bg-neutral-600 transition-colors shadow-lg"
-            title="Reset View"
-        >
-            <Maximize size={18} />
-        </button>
-    </div>
-);
-
+import { useTerminalSocket } from "@/hooks/useSocket";
+import Toolbar from '@/components/canvas/Toolbar';
+import { CanvasItem, SocketMessage } from '@/lib/types';
 
 export default function CanvasPage() {
     const [items, setItems] = useState<CanvasItem[]>([]);
     const [isCreatingTerminal, setIsCreatingTerminal] = useState(false);
 
-    // 3. REMOVE the latestMessage state. It's no longer the right pattern.
-    // const [latestMessage, setLatestMessage] = useState<SocketMessage | null>(null);
-
     const canvasRef = useRef<CanvasRef>(null);
-    // 4. Create a ref to hold a map of terminal IDs to their component refs.
-    const terminalRefs = useRef(new Map<string, React.RefObject<DraggableTerminalRef>>());
+    const terminalRefs = useRef(new Map<string, React.RefObject<DraggableTerminalRef | null>>());
+    const subscribedTerminalIds = useRef(new Set<string>());
 
     const params = useParams();
     const searchParams = useSearchParams();
@@ -73,12 +22,32 @@ export default function CanvasPage() {
     const [clientId] = useState(() =>
         searchParams.get('client_id') || `client_${Math.random().toString(36).substr(2, 9)}`
     );
-
     const handleSocketMessage = useCallback((message: SocketMessage) => {
         console.log('Canvas received socket message:', message);
-        // setLatestMessage(message); // REMOVE THIS
 
-        // This is the new, direct way to handle output
+        if (message.type === 'session_state' && message.terminals) {
+            setItems(prevItems => {
+                const existingIds = new Set(prevItems.map(item => item.id));
+                const newItems = (message.terminals || [])
+                    .filter(term => !existingIds.has(term.frontendId))
+                    .map(term => ({
+                        id: term.frontendId,
+                        position: { x: term.x, y: term.y },
+                        color: "#4bd2f3",
+                        terminalId: term.terminalId,
+                        status: term.status as 'creating' | 'ready' | 'error',
+                    }));
+                
+                newItems.forEach(item => {
+                    if (item.terminalId && !terminalRefs.current.has(item.terminalId)) {
+                        terminalRefs.current.set(item.terminalId, createRef<DraggableTerminalRef>());
+                    }
+                });
+                return [...prevItems, ...newItems];
+            });
+            return;
+        }
+
         if (message.type === 'pty_output' && message.terminalId && message.content) {
             const termRef = terminalRefs.current.get(message.terminalId);
             if (termRef?.current) {
@@ -86,30 +55,43 @@ export default function CanvasPage() {
             } else {
                 console.warn(`Ref not found for terminalId: ${message.terminalId}`);
             }
-            return; 
+            return;
         }
 
         if (message.type === 'terminal_created' && message.terminalId && message.frontendId) {
-            setItems(prevItems =>
-                prevItems.map(item => {
-                    if (item.id === message.frontendId) {
+            setItems(prevItems => {
+                const existingItemIndex = prevItems.findIndex(item => item.id === message.frontendId);
+                const updatedItems = [...prevItems];
 
-                        if (!terminalRefs.current.has(message.terminalId!)) {
+                if (existingItemIndex !== -1) {
+                    console.log(`Updating existing terminal for frontendId: ${message.frontendId}`);
+                    updatedItems[existingItemIndex] = {
+                        ...updatedItems[existingItemIndex],
+                        terminalId: message.terminalId,
+                        status: 'ready',
+                    };
+                } else {
+                    console.log(`Creating new terminal for other client, frontendId: ${message.frontendId}`);
+                    const newItem: CanvasItem = {
+                        id: message.frontendId!,
+                        position: { x: message.x ?? 200, y: message.y ?? 200 },
+                        color: "#4bd2f3",
+                        terminalId: message.terminalId,
+                        status: 'ready',
+                    };
+                    updatedItems.push(newItem);
+                }
+                return updatedItems;
+            });
 
-                            terminalRefs.current.set(message.terminalId!, createRef() as React.RefObject<DraggableTerminalRef>);
-                        }
-                        return {
-                            ...item,
-                            terminalId: message.terminalId,
-                            status: 'ready' as const,
-                        };
-                    }
-                    return item;
-                })
-            );
+            if (!terminalRefs.current.has(message.terminalId)) {
+                terminalRefs.current.set(message.terminalId, createRef<DraggableTerminalRef>());
+            }
 
             setIsCreatingTerminal(false);
+            return;
         }
+
         if (message.type === 'terminal_error' && message.frontendId) {
             setItems(prevItems =>
                 prevItems.map(item =>
@@ -120,16 +102,7 @@ export default function CanvasPage() {
             );
             setIsCreatingTerminal(false);
         }
-    }, []); 
-
-    const handleTerminalCreated = useCallback((terminalId: string) => {
-        console.log('Terminal created with ID:', terminalId);
-    }, []);
-
-    const handleError = useCallback((error: string) => {
-        console.error('Terminal creation error:', error);
-        setIsCreatingTerminal(false);
-    }, []);
+    }, []); // Empty dependency array as we've removed the need for `sendMessage`.
 
     const {
         sendMessage,
@@ -137,10 +110,20 @@ export default function CanvasPage() {
     } = useTerminalSocket(
         sessionId,
         clientId,
-        handleSocketMessage,
-        handleTerminalCreated,
-        handleError
+        handleSocketMessage
     );
+
+
+    useEffect(() => {
+        items.forEach(item => {
+            if (item.terminalId && !subscribedTerminalIds.current.has(item.terminalId)) {
+                console.log(`Subscribing to terminal history for ${item.terminalId}`);
+                sendMessage('subscribe', undefined, item.terminalId);
+                subscribedTerminalIds.current.add(item.terminalId);
+            }
+        });
+    }, [items, sendMessage]);
+
 
     const handleAddItem = useCallback(() => {
         if (!isConnected || isCreatingTerminal) return;
@@ -156,7 +139,7 @@ export default function CanvasPage() {
 
         setItems(prevItems => [...prevItems, newItem]);
 
-        const payload = { frontendId };
+        const payload = { frontendId, x: newItem.position.x, y: newItem.position.y };
         sendMessage('create_terminal', JSON.stringify(payload));
 
     }, [isConnected, isCreatingTerminal, sendMessage]);
@@ -177,9 +160,10 @@ export default function CanvasPage() {
         const itemToRemove = items.find(item => item.id === id);
         if (itemToRemove && itemToRemove.terminalId) {
             terminalRefs.current.delete(itemToRemove.terminalId);
+            subscribedTerminalIds.current.delete(itemToRemove.terminalId); // Clean up subscription tracking
         }
         setItems(currentItems => currentItems.filter(item => item.id !== id));
-    }, [items]); 
+    }, [items]);
 
     return (
         <div className="h-screen w-screen bg-neutral-800">
@@ -192,10 +176,12 @@ export default function CanvasPage() {
 
             <InfiniteCanvas ref={canvasRef}>
                 {items.map((item) => {
-                    const ref = item.terminalId ? terminalRefs.current.get(item.terminalId) : null;
+                    // FIX: Retrieve the ref. It can be undefined if the terminalId doesn't exist yet,
+                    // which is fine as the ref prop on a component can be null or undefined.
+                    const terminalRef = item.terminalId ? terminalRefs.current.get(item.terminalId) : undefined;
                     return (
                         <DraggableTerminal
-                            ref={ref}
+                            ref={terminalRef}
                             key={item.id}
                             item={item}
                             onPositionChange={handlePositionChange}
@@ -203,7 +189,6 @@ export default function CanvasPage() {
                             sessionId={sessionId}
                             clientId={clientId}
                             sendMessage={sendMessage}
-                          
                         />
                     );
                 })}

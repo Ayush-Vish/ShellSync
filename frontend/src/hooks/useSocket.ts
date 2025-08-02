@@ -1,15 +1,5 @@
+import { normalizeMessage, SocketMessage } from '@/lib/types';
 import { useEffect, useRef, useCallback, useState } from 'react';
-
-
-export interface SocketMessage {
-    type: 'terminal_created' | 'pty_output' | 'pty_input' | 'create_terminal' | 'terminal_error';
-    content?: string;
-    terminalId?: string;
-    frontendId?: string;
-    error?: string;
-    sender?: string;
-}
-
 export interface TerminalInfo {
   id: string;
   status: 'creating' | 'ready' | 'error';
@@ -17,18 +7,6 @@ export interface TerminalInfo {
   error?: string;
 }
 
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function normalizeMessage(data: any): SocketMessage {
-  return {
-    type: data.type,
-    content: data.content,
-    terminalId: data.terminalId || data.terminal_id, 
-    frontendId: data.frontendId || data.frontend_id, 
-    error: data.error,
-    sender: data.sender,
-  };
-}
 
 export function useTerminalSocket(
     sessionId: string,
@@ -68,48 +46,46 @@ export function useTerminalSocket(
         }
       };
 
-      ws.onmessage = (event) => {
+ws.onmessage = (event) => {
         try {
-          const rawData = JSON.parse(event.data);
-          console.log('Raw WebSocket message:', rawData);
-          
-          // Normalize the message format
-          const data: SocketMessage = normalizeMessage(rawData);
-          console.log('Normalized WebSocket message:', data);
-          
+            const rawData = JSON.parse(event.data);
+            console.log('Raw WebSocket message:', rawData);
 
-          if (data.type === 'terminal_created' && data.terminalId) {
-            onTerminalCreated?.(data.terminalId);
-          }
+            const data: SocketMessage = normalizeMessage(rawData);
+            console.log('Normalized WebSocket message:', data);
 
+            if (data.type === 'session_state' && data.terminals) {
+                // Handle session state
+                onMessage(data);
+            } else if (data.type === 'terminal_created' && data.terminalId) {
+                onTerminalCreated?.(data.terminalId);
+                onMessage(data);
+            } else if (data.type === 'terminal_error') {
+                console.error('WebSocket error message:', data.error);
+                onError?.(data.error || 'Unknown error');
 
-
-          if (data.type === 'terminal_error') {
-            console.error('WebSocket error message:', data.error);
-            onError?.(data.error || 'Unknown error');
-            
-
-            if (data.terminalId) {
-              setTerminals(prev => {
-                const updated = new Map(prev);
-                const existing = updated.get(data.terminalId!);
-                if (existing) {
-                  updated.set(data.terminalId!, {
-                    ...existing,
-                    status: 'error',
-                    error: data.error
-                  });
+                if (data.terminalId) {
+                    setTerminals(prev => {
+                        const updated = new Map(prev);
+                        const existing = updated.get(data.terminalId!);
+                        if (existing) {
+                            updated.set(data.terminalId!, {
+                                ...existing,
+                                status: 'error',
+                                error: data.error,
+                            });
+                        }
+                        return updated;
+                    });
                 }
-                return updated;
-              });
+                onMessage(data);
+            } else {
+                onMessage(data);
             }
-          }
-          
-          onMessage(data); 
         } catch (error) {
-          console.error('Failed to parse incoming WebSocket message:', event.data, error);
+            console.error('Failed to parse incoming WebSocket message:', event.data, error);
         }
-      };
+    };
 
       ws.onerror = (error) => {
         console.error('WebSocket error:', error);
@@ -167,13 +143,14 @@ export function useTerminalSocket(
   }, [sessionId, clientId, connect]);
 
 
-  const sendMessage = useCallback((type: SocketMessage['type'], content?: string, terminalId?: string) => {
+  const sendMessage = useCallback((type: SocketMessage['type'], content?: string, terminalId?: string, chunkNum : number = 0) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       const message: SocketMessage = {
         type,
         content,
         sender: clientId,
         terminalId,
+        chunkNum,
       };
       console.log('Sending WebSocket message:', message);
       wsRef.current.send(JSON.stringify(message));
