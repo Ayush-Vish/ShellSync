@@ -64,15 +64,6 @@ func (h *Hub) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 	// FIX: The original code was missing the call to the read loop.
 	go h.readLoop(conn, sessionID, clientID)
 }
-func (h *Hub) ensureSessionExists(sessionID string) {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-
-	if h.sessions[sessionID] == nil {
-		h.sessions[sessionID] = make(map[string]bool)
-		log.Printf("Created session %s in WebSocket hub", sessionID)
-	}
-}
 func (h *Hub) registerClient(conn *websocket.Conn, session *types.Session, clientID string) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -172,26 +163,6 @@ func (h *Hub) writeLoop(c *client, clientID string) {
 	}
 }
 
-func normalizeMessage(msg types.Message) map[string]interface{} {
-	result := map[string]interface{}{
-		"type":    msg.Type,
-		"content": msg.Content,
-		"sender":  msg.Sender,
-	}
-
-	if msg.TerminalID != "" {
-		result["terminalId"] = msg.TerminalID
-	}
-	if msg.FrontendID != "" {
-		result["frontendId"] = msg.FrontendID
-	}
-	if msg.Error != "" {
-		result["error"] = msg.Error
-	}
-
-	return result
-}
-
 func (h *Hub) readLoop(conn *websocket.Conn, sessionID, clientID string) {
 	defer func() {
 		h.unregisterClient(clientID, sessionID)
@@ -226,9 +197,9 @@ func (h *Hub) readLoop(conn *websocket.Conn, sessionID, clientID string) {
 
 		case "create_terminal":
 			var payload struct {
-				FrontendID string `json:"frontendId"`
-				X          float32  `json:"x"`
-				Y          float32  `json:"y"`
+				FrontendID string  `json:"frontendId"`
+				X          float32 `json:"x"`
+				Y          float32 `json:"y"`
 			}
 			if err := json.Unmarshal([]byte(msg.Content), &payload); err != nil {
 				log.Printf("Error unmarshalling create_terminal payload from client %s: %v", clientID, err)
@@ -247,18 +218,6 @@ func (h *Hub) readLoop(conn *websocket.Conn, sessionID, clientID string) {
 			log.Printf("Received unknown message type '%s' from client %s", msg.Type, clientID)
 		}
 	}
-}
-
-func getInt(m map[string]interface{}, key string) int64 {
-	if val, ok := m[key]; ok {
-		switch v := val.(type) {
-		case float64:
-			return int64(v)
-		case int:
-			return int64(v)
-		}
-	}
-	return 0
 }
 
 func getString(m map[string]interface{}, key string) string {

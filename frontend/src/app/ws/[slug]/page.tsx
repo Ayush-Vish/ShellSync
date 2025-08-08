@@ -102,11 +102,20 @@ export default function CanvasPage() {
             );
             setIsCreatingTerminal(false);
         }
+
+        if (message.type === 'terminal_removed' && message.terminalId) {
+            const terminalIdToRemove = message.terminalId;
+            setItems(prevItems => prevItems.filter(item => item.terminalId !== terminalIdToRemove));
+            terminalRefs.current.delete(terminalIdToRemove);
+            subscribedTerminalIds.current.delete(terminalIdToRemove);
+            return;
+        }
     }, []); // Empty dependency array as we've removed the need for `sendMessage`.
 
     const {
         sendMessage,
         isConnected,
+        removeTerminal,
     } = useTerminalSocket(
         sessionId,
         clientId,
@@ -159,11 +168,9 @@ export default function CanvasPage() {
     const handleRemoveItem = useCallback((id: string) => {
         const itemToRemove = items.find(item => item.id === id);
         if (itemToRemove && itemToRemove.terminalId) {
-            terminalRefs.current.delete(itemToRemove.terminalId);
-            subscribedTerminalIds.current.delete(itemToRemove.terminalId); // Clean up subscription tracking
+            removeTerminal(itemToRemove.terminalId);
         }
-        setItems(currentItems => currentItems.filter(item => item.id !== id));
-    }, [items]);
+    }, [items, removeTerminal]);
 
     return (
         <div className="h-screen w-screen bg-neutral-800">

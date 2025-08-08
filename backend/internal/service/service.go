@@ -239,6 +239,20 @@ func (s *ShellSyncService) RequestNewTerminal(sessionID, frontendID string, x fl
 		Data:       make([]types.Message, 0, 2000),
 	}
 	session.Mu.Unlock()
+
+	// Immediately broadcast that a terminal is being created
+	if s.hub != nil {
+		creatingMsg := types.Message{
+			Type:       "terminal_created", // Use the same type, but with 'creating' status
+			TerminalID: backendTerminalID,
+			FrontendID: frontendID,
+			Status:     "creating",
+			X:          x,
+			Y:          y,
+		}
+		s.hub.BroadcastToSession(sessionID, creatingMsg)
+	}
+
 	log.Printf("Requesting agent to create terminal with ID %s for session %s", backendTerminalID, sessionID)
 
 	select {

@@ -200,18 +200,14 @@ ws.onmessage = (event) => {
   }, [sendMessage]);
 
 
+  const removeTerminal = useCallback((terminalId: string) => {
+    sendMessage('remove_terminal', JSON.stringify({ terminalId }));
+  }, [sendMessage]);
+
+
   const getTerminalInfo = useCallback((terminalId: string) => {
     return terminals.get(terminalId);
   }, [terminals]);
-
-
-  const removeTerminal = useCallback((terminalId: string) => {
-    setTerminals(prev => {
-      const updated = new Map(prev);
-      updated.delete(terminalId);
-      return updated;
-    });
-  }, []);
 
 
   const reconnect = useCallback(() => {
@@ -225,10 +221,10 @@ ws.onmessage = (event) => {
   return {
     sendMessage,
     createTerminal,
-    getTerminalInfo,
     removeTerminal,
-    isConnected,
+    getTerminalInfo,
     reconnect,
+    isConnected,
     connectionAttempts,
     terminals: Array.from(terminals.values()),
   };

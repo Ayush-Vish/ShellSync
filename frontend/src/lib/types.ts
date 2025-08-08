@@ -8,7 +8,15 @@ export interface CanvasItem {
 }
 
 export interface SocketMessage {
-    type: 'terminal_created' | 'pty_output' | 'pty_input' | 'create_terminal' | 'terminal_error' | 'session_state' | 'subscribe';
+    type: 'terminal_created' 
+    | 'pty_output' 
+    | 'pty_input' 
+    | 'create_terminal' 
+    | 'terminal_error' 
+    | 'session_state' 
+    | 'subscribe' 
+    | 'remove_terminal'
+    | 'terminal_removed';
     content?: string;
     terminalId?: string;
     frontendId?: string;

@@ -18,10 +18,10 @@ type PTYService interface {
 
 type Message struct {
 	Type       string         `json:"type"`
-	TerminalID string         `json:"terminal_id,omitempty"`
+	TerminalID string         `json:"terminalId,omitempty"`
 	Content    string         `json:"content,omitempty"`
 	Sender     string         `json:"sender,omitempty"`
-	FrontendID string         `json:"frontend_id,omitempty"`
+	FrontendID string         `json:"frontendId,omitempty"`
 	Error      string         `json:"error,omitempty"`
 	Terminals  []TerminalInfo `json:"terminals,omitempty"`
 	Status     string         `json:"status,omitempty"`
@@ -30,8 +30,8 @@ type Message struct {
 }
 
 type TerminalInfo struct {
-	TerminalID string  `json:"terminal_id"`
-	FrontendID string  `json:"frontend_id"`
+	TerminalID string  `json:"terminalId"`
+	FrontendID string  `json:"frontendId"`
 	Status     string  `json:"status"`
 	X          float32 `json:"x"` // Add position for canvas
 	Y          float32 `json:"y"`
