@@ -1,5 +1,3 @@
-I'll generate a comprehensive README for ShellSync based on the existing codebase structure and documentation. [1](#0-0) 
-
 # ShellSync
 
 **ShellSync** is an open-source, real-time terminal collaboration tool that enables multiple users to share and interact with terminal sessions through an intuitive, infinite canvas interface. [2](#0-1)  Whether you're pair programming, debugging remotely, or teaching command-line skills, ShellSync makes collaborative terminal workflows seamless and efficient.
@@ -158,12 +156,6 @@ A: After running the ShellSync agent, you'll receive a unique session URL. Simpl
 
 ShellSync is licensed under the [MIT License](LICENSE). [21](#0-20) 
 
-## 📞 Contact
 
-- **Repository**: [https://github.com/Ayush-Vish/ShellSync](https://github.com/Ayush-Vish/ShellSync)
-- **Issues**: [GitHub Issues](https://github.com/Ayush-Vish/ShellSync/issues)
-- **Email**: [ayushvish6555@gmail.com](mailto:ayushvish6555@gmail.com) [22](#0-21) 
 
----
 
-**Built for developers, by developers.** [23](#0-22) 
