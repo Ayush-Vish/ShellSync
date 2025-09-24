@@ -1,3 +1,5 @@
+<img width="747" height="1024" alt="image" src="https://github.com/user-attachments/assets/ba1ac3a2-b0ab-4da8-8c6e-2ecdeee066d0" />
+
 # ShellSync
 
 **A Collaborative Playground of Terminals**
