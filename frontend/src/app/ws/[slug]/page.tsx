@@ -22,6 +22,7 @@ export default function CanvasPage() {
     const [clientId] = useState(() =>
         searchParams.get('client_id') || `client_${Math.random().toString(36).substr(2, 9)}`
     );
+
     const handleSocketMessage = useCallback((message: SocketMessage) => {
         console.log('Canvas received socket message:', message);
 
@@ -36,6 +37,8 @@ export default function CanvasPage() {
                         color: "#4bd2f3",
                         terminalId: term.terminalId,
                         status: term.status as 'creating' | 'ready' | 'error',
+                        width: term.width || 640, // Add width from backend
+                        height: term.height || 400, // Add height from backend
                     }));
                 
                 newItems.forEach(item => {
@@ -69,6 +72,8 @@ export default function CanvasPage() {
                         ...updatedItems[existingItemIndex],
                         terminalId: message.terminalId,
                         status: 'ready',
+                        width: message.width || 640, // Set width
+                        height: message.height || 400, // Set height
                     };
                 } else {
                     console.log(`Creating new terminal for other client, frontendId: ${message.frontendId}`);
@@ -78,6 +83,8 @@ export default function CanvasPage() {
                         color: "#4bd2f3",
                         terminalId: message.terminalId,
                         status: 'ready',
+                        width: message.width || 640, // Set width
+                        height: message.height || 400, // Set height
                     };
                     updatedItems.push(newItem);
                 }
@@ -110,7 +117,54 @@ export default function CanvasPage() {
             subscribedTerminalIds.current.delete(terminalIdToRemove);
             return;
         }
-    }, []); // Empty dependency array as we've removed the need for `sendMessage`.
+
+        if (message.type === 'terminal_position_updated' && message.terminalId && message.x !== undefined && message.y !== undefined) {
+            console.log('Received position update:', { terminalId: message.terminalId, x: message.x, y: message.y });
+            setItems(prevItems => {
+                const updatedItems = [...prevItems];
+                const itemIndex = updatedItems.findIndex(item => item.terminalId === message.terminalId);
+                
+                if (itemIndex !== -1) {
+                    const currentItem = updatedItems[itemIndex];
+                    if (currentItem.position.x !== message.x || currentItem.position.y !== message.y) {
+                        updatedItems[itemIndex] = {
+                            ...currentItem,
+                            position: { 
+                                x: message.x as number, 
+                                y: message.y as number 
+                            }
+                        };
+                        return updatedItems;
+                    }
+                }
+                return prevItems;
+            });
+            return;
+        }
+
+        // ADD THIS: Handle terminal resize updates from other clients
+        if (message.type === 'terminal_resized' && message.terminalId && message.width !== undefined && message.height !== undefined) {
+            console.log('Received resize update:', { terminalId: message.terminalId, width: message.width, height: message.height });
+            setItems(prevItems => {
+                const updatedItems = [...prevItems];
+                const itemIndex = updatedItems.findIndex(item => item.terminalId === message.terminalId);
+                
+                if (itemIndex !== -1) {
+                    const currentItem = updatedItems[itemIndex];
+                    if (currentItem.width !== message.width || currentItem.height !== message.height) {
+                        updatedItems[itemIndex] = {
+                            ...currentItem,
+                            width: message.width,
+                            height: message.height,
+                        };
+                        return updatedItems;
+                    }
+                }
+                return prevItems;
+            });
+            return;
+        }
+    }, []); 
 
     const {
         sendMessage,
@@ -122,7 +176,6 @@ export default function CanvasPage() {
         handleSocketMessage
     );
 
-
     useEffect(() => {
         items.forEach(item => {
             if (item.terminalId && !subscribedTerminalIds.current.has(item.terminalId)) {
@@ -132,7 +185,6 @@ export default function CanvasPage() {
             }
         });
     }, [items, sendMessage]);
-
 
     const handleAddItem = useCallback(() => {
         if (!isConnected || isCreatingTerminal) return;
@@ -144,11 +196,20 @@ export default function CanvasPage() {
             position: canvasRef.current?.getCanvasCenter() ?? { x: 200, y: 200 },
             color: "#4bd2f3",
             status: 'creating',
+            width: 640, // Set initial width
+            height: 400, // Set initial height
+            type: 'terminal',
         };
 
         setItems(prevItems => [...prevItems, newItem]);
 
-        const payload = { frontendId, x: newItem.position.x, y: newItem.position.y };
+        const payload = { 
+            frontendId, 
+            x: newItem.position.x, 
+            y: newItem.position.y,
+            width: newItem.width, // Send initial dimensions
+            height: newItem.height,
+        };
         sendMessage('create_terminal', JSON.stringify(payload));
 
     }, [isConnected, isCreatingTerminal, sendMessage]);
@@ -158,12 +219,28 @@ export default function CanvasPage() {
     }, []);
 
     const handlePositionChange = useCallback((id: string, position: { x: number; y: number }) => {
-        setItems(currentItems =>
-            currentItems.map(item =>
+        setItems(currentItems => {
+            const updatedItems = currentItems.map(item =>
                 item.id === id ? { ...item, position } : item
-            )
-        );
-    }, []);
+            );
+            
+            const movedItem = updatedItems.find(item => item.id === id);
+            if (movedItem?.terminalId) {
+                const payload = {
+                    terminalId: movedItem.terminalId,
+                    x: position.x,
+                    y: position.y,
+                };
+                sendMessage(
+                    'terminal_position_updated',
+                    JSON.stringify(payload),
+                    movedItem.terminalId
+                );
+            }
+            
+            return updatedItems;
+        });
+    }, [sendMessage]);
 
     const handleRemoveItem = useCallback((id: string) => {
         const itemToRemove = items.find(item => item.id === id);
@@ -183,8 +260,6 @@ export default function CanvasPage() {
 
             <InfiniteCanvas ref={canvasRef}>
                 {items.map((item) => {
-                    // FIX: Retrieve the ref. It can be undefined if the terminalId doesn't exist yet,
-                    // which is fine as the ref prop on a component can be null or undefined.
                     const terminalRef = item.terminalId ? terminalRefs.current.get(item.terminalId) : undefined;
                     return (
                         <DraggableTerminal

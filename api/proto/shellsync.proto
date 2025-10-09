@@ -5,7 +5,6 @@ option go_package = "github.com/Ayush-Vish/shellsync/api/proto";
 package shellsync;
 
 service ShellSync {
-
   // Creates a new SSH Session for a given host
   rpc CreateSession(CreateRequest) returns (CreateResponse);
 
@@ -22,13 +21,12 @@ message CreateResponse {
   string frontend_url = 2;
 }
 
-
 message ClientUpdate {
   oneof payload {
     InitialAgentMessage initial_message = 1;
     TerminalOutput pty_output = 2;
     TerminalCreatedResponse terminal_created_response = 3;
-      TerminalError terminal_error = 4;
+    TerminalError terminal_error = 4;
   }
 }
 
@@ -50,12 +48,12 @@ message TerminalCreatedResponse {
   string terminal_id = 1;
 }
 
-
-message ServerUpdate{
-  oneof payload{
-    string server_hello =1;
+message ServerUpdate {
+  oneof payload {
+    string server_hello = 1;
     TerminalInput pty_input = 2;
     CreateTerminalRequest create_terminal_request = 3;
+    TerminalResize resize_terminal = 4;  // NEW: Add resize support
   }
 }
 
@@ -65,5 +63,14 @@ message TerminalInput {
 }
 
 message CreateTerminalRequest {
-    string terminal_id = 1;
+  string terminal_id = 1;
+}
+
+// NEW: Add resize message
+message TerminalResize {
+  string terminal_id = 1;
+  uint32 cols = 2;  // Number of columns
+  uint32 rows = 3;  // Number of rows
+  uint32 width = 4; // Pixel width (optional)
+  uint32 height = 5; // Pixel height (optional)
 }

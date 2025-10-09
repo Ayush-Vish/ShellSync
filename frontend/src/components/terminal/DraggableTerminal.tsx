@@ -3,10 +3,22 @@ import React, {
   useRef,
   forwardRef,
   useImperativeHandle,
+  useState,
+  useEffect,
 } from "react";
 import Xterm, { XtermRef } from "@/components/terminal/Terminal";
-import { Loader2, AlertCircle, X } from "lucide-react";
+import { Loader2, AlertCircle, X, Minus, Maximize2, Square, Plus } from "lucide-react";
 import { CanvasItem, SocketMessage } from "@/lib/types";
+
+// Minimum and maximum dimensions for the terminal
+const MIN_WIDTH = 400;
+const MIN_HEIGHT = 300;
+const MAX_WIDTH = 1200;
+const MAX_HEIGHT = 800;
+
+// Default dimensions
+const DEFAULT_WIDTH = 640;
+const DEFAULT_HEIGHT = 400;
 
 export interface DraggableTerminalRef {
   write: (data: string) => void;
@@ -21,7 +33,6 @@ interface DraggableTerminalProps {
     content?: string,
     terminalId?: string
   ) => void;
-
   zoom?: number;
   setCanvasPanningLocked?: (isLocked: boolean) => void;
   sessionId: string;
@@ -48,6 +59,72 @@ const DraggableTerminal = forwardRef<
     const initialPointerPosition = useRef({ x: 0, y: 0 });
     const initialItemPosition = useRef({ x: 0, y: 0 });
     const xTermRef = useRef<XtermRef>(null);
+    const [dimensions, setDimensions] = useState({
+      width: DEFAULT_WIDTH,
+      height: DEFAULT_HEIGHT,
+    });
+    const [isMaximized, setIsMaximized] = useState(false);
+    const [originalState, setOriginalState] = useState({
+      width: DEFAULT_WIDTH,
+      height: DEFAULT_HEIGHT,
+      position: { x: 0, y: 0 }
+    });
+
+    // Initialize with default size
+    useEffect(() => {
+      setDimensions({
+        width: DEFAULT_WIDTH,
+        height: DEFAULT_HEIGHT,
+      });
+    }, []);
+
+    // Handle window resize to ensure terminal fits
+    useEffect(() => {
+      const handleResize = () => {
+        if (xTermRef.current) {
+          xTermRef.current.fit();
+        }
+      };
+      window.addEventListener('resize', handleResize);
+      return () => window.removeEventListener('resize', handleResize);
+    }, []);
+
+    // Send position updates via WebSocket
+    const sendPositionUpdate = useCallback(() => {
+      if (item.terminalId) {
+        sendMessage('position_update', JSON.stringify({
+          x: item.position.x,
+          y: item.position.y,
+          width: dimensions.width,
+          height: dimensions.height
+        }), item.terminalId);
+      }
+    }, [item.position, dimensions, item.terminalId, sendMessage]);
+
+    // Send size updates via WebSocket
+    // In DraggableTerminal component, update sendSizeUpdate
+const sendSizeUpdate = useCallback(() => {
+  if (item.terminalId) {
+    const cols = Math.max(10, Math.floor(dimensions.width / 8));
+    const rows = Math.max(5, Math.floor(dimensions.height / 16));
+    
+    sendMessage('resize', JSON.stringify({
+      cols: cols,
+      rows: rows,
+      width: Math.round(dimensions.width),
+      height: Math.round(dimensions.height)
+    }), item.terminalId);
+  }
+}, [dimensions, item.terminalId, sendMessage]);
+
+    // Send updates when position or dimensions change
+    useEffect(() => {
+      sendPositionUpdate();
+    }, [item.position, sendPositionUpdate]);
+
+    useEffect(() => {
+      sendSizeUpdate();
+    }, [dimensions, sendSizeUpdate]);
 
     useImperativeHandle(ref, () => ({
       write: (data: string) => {
@@ -56,6 +133,70 @@ const DraggableTerminal = forwardRef<
         }
       },
     }));
+
+    const handleResize = useCallback((widthDelta: number, heightDelta: number) => {
+      setDimensions(prev => {
+        const newWidth = Math.min(Math.max(prev.width + widthDelta, MIN_WIDTH), MAX_WIDTH);
+        const newHeight = Math.min(Math.max(prev.height + heightDelta, MIN_HEIGHT), MAX_HEIGHT);
+        
+        // Send resize message to backend
+        if (item.terminalId) {
+          sendMessage('resize', JSON.stringify({
+            cols: Math.floor((newWidth - 20) / 9), // Approximate columns based on width
+            rows: Math.floor((newHeight - 100) / 17), // Approximate rows based on height
+            width: newWidth,
+            height: newHeight
+          }), item.terminalId);
+        }
+    
+        return {
+          width: newWidth,
+          height: newHeight
+        };
+      });
+    }, [item.terminalId, sendMessage]);
+    const handleMaximize = useCallback(() => {
+      if (isMaximized) {
+        // Restore to original size and position
+        setDimensions({
+          width: originalState.width,
+          height: originalState.height
+        });
+        onPositionChange(item.id, originalState.position);
+      } else {
+        // Save current state and maximize
+        setOriginalState({
+          width: dimensions.width,
+          height: dimensions.height,
+          position: { ...item.position }
+        });
+        
+        // Maximize to 90% of window size
+        const maxWidth = Math.min(window.innerWidth * 0.9, MAX_WIDTH);
+        const maxHeight = Math.min(window.innerHeight * 0.9, MAX_HEIGHT);
+        
+        setDimensions({
+          width: maxWidth,
+          height: maxHeight
+        });
+        
+        // Center on screen
+        const centerX = (window.innerWidth - maxWidth) / 2;
+        const centerY = (window.innerHeight - maxHeight) / 2;
+        onPositionChange(item.id, { x: centerX, y: centerY });
+      }
+      
+      setIsMaximized(!isMaximized);
+    }, [isMaximized, originalState, dimensions, item.position, item.id, onPositionChange]);
+
+    const handleMinimize = useCallback(() => {
+      // Minimize to minimum size
+      setDimensions({
+        width: MIN_WIDTH,
+        height: MIN_HEIGHT
+      });
+      setIsMaximized(false);
+    }, []);
 
     const handleTerminalData = useCallback(
       (data: string) => {
@@ -72,7 +213,8 @@ const DraggableTerminal = forwardRef<
       const target = e.target as HTMLElement;
       if (
         target.closest(".close-button") ||
-        target.closest(".xterm-viewport")
+        target.closest(".xterm-viewport") ||
+        target.closest(".resize-button")
       ) {
         return;
       }
@@ -113,6 +255,7 @@ const DraggableTerminal = forwardRef<
         dragRef.current.releasePointerCapture(e.pointerId);
       }
     };
+
     const handleClose = useCallback(
       (e: React.MouseEvent) => {
         e.stopPropagation();
@@ -158,7 +301,7 @@ const DraggableTerminal = forwardRef<
 
         case "ready":
           return (
-            <div className="flex-grow w-full h-full">
+            <div className="flex-grow w-full h-full relative">
               <Xterm onData={handleTerminalData} ref={xTermRef} />
             </div>
           );
@@ -180,14 +323,18 @@ const DraggableTerminal = forwardRef<
           return "bg-gray-500";
       }
     };
+
     return (
       <div
         ref={dragRef}
-        className="absolute flex flex-col w-[640px] h-[400px] rounded-lg shadow-xl select-none overflow-hidden border border-gray-700 bg-[#1e1e1e]"
+        className="absolute flex flex-col rounded-lg shadow-xl select-none overflow-hidden border border-gray-700 bg-[#1e1e1e]"
         style={{
           left: `${item.position.x}px`,
           top: `${item.position.y}px`,
+          width: `${dimensions.width}px`,
+          height: `${dimensions.height}px`,
           touchAction: "none",
+          cursor: isDraggingRef.current ? "grabbing" : "grab",
         }}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
@@ -197,11 +344,28 @@ const DraggableTerminal = forwardRef<
         <div className="flex items-center justify-between px-3 py-2 bg-[#2d2d2d] cursor-grab">
           <div className="flex items-center space-x-2">
             <div className={`w-2 h-2 rounded-full ${getStatusColor()}`} />
+            
+            {/* Resize buttons */}
+            <div className="flex items-center space-x-1">
+              <button
+                onClick={() => handleResize(-10, -10)}
+                className="resize-button p-1 hover:bg-gray-600 rounded text-gray-400 hover:text-white transition-colors"
+    title="Decrease size (-10px)"
+  >
+    <Minus size={12} />
+  </button>
+  <button
+    onClick={() => handleResize(10, 10)}
+    className="resize-button p-1 hover:bg-gray-600 rounded text-gray-400 hover:text-white transition-colors"
+    title="Increase size (+10px)"
+  >
+    <Plus size={12} />
+  </button>
+</div>
 
-            <div className="flex space-x-1.5">
-              <div className="w-3 h-3 bg-red-500 rounded-full" />
-              <div className="w-3 h-3 bg-yellow-500 rounded-full" />
-              <div className="w-3 h-3 bg-green-500 rounded-full" />
+            {/* Size display */}
+            <div className="text-xs text-gray-400 font-mono ml-2">
+              {dimensions.width}×{dimensions.height}
             </div>
           </div>
 
@@ -212,7 +376,6 @@ const DraggableTerminal = forwardRef<
               </span>
             ) : (
               <span title={`Item ID: ${item.id}`}>
-                {/* FIX: Added a check to ensure item.id is a string before calling substring. */}
                 {item.status === "creating"
                   ? "Creating..."
                   : item.status === "error"
@@ -226,13 +389,34 @@ const DraggableTerminal = forwardRef<
             )}
           </div>
 
-          <button
-            onClick={handleClose}
-            className="close-button p-1 hover:bg-red-600 rounded text-gray-400 hover:text-white transition-colors"
-            title="Close terminal"
-          >
-            <X size={14} />
-          </button>
+          <div className="flex items-center space-x-1">
+            {/* Minimize button */}
+            <button
+              onClick={handleMinimize}
+              className="resize-button p-1 hover:bg-gray-600 rounded text-gray-400 hover:text-white transition-colors"
+              title="Minimize to minimum size"
+            >
+              <Minus size={14} />
+            </button>
+
+            {/* Maximize/Restore button */}
+            <button
+              onClick={handleMaximize}
+              className="resize-button p-1 hover:bg-gray-600 rounded text-gray-400 hover:text-white transition-colors"
+              title={isMaximized ? "Restore to original size" : "Maximize"}
+            >
+              {isMaximized ? <Square size={12} /> : <Maximize2 size={12} />}
+            </button>
+
+            {/* Close button */}
+            <button
+              onClick={handleClose}
+              className="close-button p-1 hover:bg-red-600 rounded text-gray-400 hover:text-white transition-colors"
+              title="Close terminal"
+            >
+              <X size={14} />
+            </button>
+          </div>
         </div>
 
         {renderTerminalContent()}

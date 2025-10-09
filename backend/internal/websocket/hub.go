@@ -59,9 +59,7 @@ func (h *Hub) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Register the client and start the read loop to process messages from them.
 	h.registerClient(conn, session, clientID)
-	// FIX: The original code was missing the call to the read loop.
 	go h.readLoop(conn, sessionID, clientID)
 }
 func (h *Hub) registerClient(conn *websocket.Conn, session *types.Session, clientID string) {
@@ -97,6 +95,8 @@ func (h *Hub) registerClient(conn *websocket.Conn, session *types.Session, clien
 				Status:     term.Status,
 				X:          term.X,
 				Y:          term.Y,
+				Width:      term.Width,
+				Height:     term.Height,
 			})
 		}
 		session.Mu.RUnlock()
@@ -162,7 +162,6 @@ func (h *Hub) writeLoop(c *client, clientID string) {
 		c.mu.Unlock()
 	}
 }
-
 func (h *Hub) readLoop(conn *websocket.Conn, sessionID, clientID string) {
 	defer func() {
 		h.unregisterClient(clientID, sessionID)
@@ -211,6 +210,116 @@ func (h *Hub) readLoop(conn *websocket.Conn, sessionID, clientID string) {
 			}
 			h.service.RequestNewTerminal(sessionID, payload.FrontendID, payload.X, payload.Y)
 
+		// ADD THIS CASE: Handle resize messages
+		case "resize":
+			var payload struct {
+				Cols   uint32 `json:"cols"`
+				Rows   uint32 `json:"rows"`
+				Width  uint32 `json:"width"`
+				Height uint32 `json:"height"`
+			}
+			if err := json.Unmarshal([]byte(msg.Content), &payload); err != nil {
+				log.Printf("Error unmarshalling resize payload from client %s: %v", clientID, err)
+				continue
+			}
+			if msg.TerminalID == "" {
+				log.Printf("Received resize from client %s without a terminalId", clientID)
+				continue
+			}
+
+			log.Printf("Processing resize for terminal %s: %dx%d (cols x rows)",
+				msg.TerminalID, payload.Cols, payload.Rows)
+
+			// Forward resize command to service
+			session, exists := h.service.GetSession(sessionID)
+			if !exists {
+				log.Printf("Session %s not found when resizing terminal", sessionID)
+				continue
+			}
+
+			// Send resize command to agent
+			resizeCmd := types.ResizeTerminalCmd{
+				TerminalID: msg.TerminalID,
+				Cols:       payload.Cols,
+				Rows:       payload.Rows,
+				Width:      payload.Width,
+				Height:     payload.Height,
+			}
+
+			select {
+			case session.AgentInputChan <- resizeCmd:
+				log.Printf("Sent resize command for terminal %s: %dx%d", msg.TerminalID, payload.Cols, payload.Rows)
+			default:
+				log.Printf("Agent input channel for session %s is full. Resize command dropped.", sessionID)
+			}
+
+			// Also update terminal dimensions in session
+			session.Mu.Lock()
+			if terminal, ok := session.Terminals[msg.TerminalID]; ok {
+				terminal.Width = int(payload.Width)
+				terminal.Height = int(payload.Height)
+
+				// Broadcast resize to all clients
+				resizeMsg := types.Message{
+					Type:       "terminal_resized",
+					TerminalID: msg.TerminalID,
+					Width:      int(payload.Width),
+					Height:     int(payload.Height),
+				}
+				h.BroadcastToSession(sessionID, resizeMsg)
+			}
+			session.Mu.Unlock()
+
+		// ADD THIS CASE: Handle position_update messages
+		case "position_update":
+			var payload struct {
+				X      float32 `json:"x"`
+				Y      float32 `json:"y"`
+				Width  int     `json:"width"`
+				Height int     `json:"height"`
+			}
+			if err := json.Unmarshal([]byte(msg.Content), &payload); err != nil {
+				log.Printf("Error unmarshalling position_update payload from client %s: %v", clientID, err)
+				continue
+			}
+			if msg.TerminalID == "" {
+				log.Printf("Received position_update from client %s without a terminalId", clientID)
+				continue
+			}
+
+			log.Printf("Processing position update for terminal %s: (%.2f, %.2f)",
+				msg.TerminalID, payload.X, payload.Y)
+
+			// Update terminal position and dimensions in session
+			session, exists := h.service.GetSession(sessionID)
+			if !exists {
+				log.Printf("Session %s not found when updating terminal position", sessionID)
+				continue
+			}
+
+			session.Mu.Lock()
+			if terminal, ok := session.Terminals[msg.TerminalID]; ok {
+				terminal.X = payload.X
+				terminal.Y = payload.Y
+				terminal.Width = payload.Width
+				terminal.Height = payload.Height
+
+				// Broadcast position update to all clients
+				updateMsg := types.Message{
+					Type:       "terminal_position_updated",
+					TerminalID: msg.TerminalID,
+					X:          payload.X,
+					Y:          payload.Y,
+					Width:      payload.Width,
+					Height:     payload.Height,
+				}
+				h.BroadcastToSession(sessionID, updateMsg)
+				log.Printf("Broadcast position update for terminal %s", msg.TerminalID)
+			} else {
+				log.Printf("Terminal %s not found in session %s", msg.TerminalID, sessionID)
+			}
+			session.Mu.Unlock()
+
 		case "subscribe":
 			h.sendTerminalHistory(sessionID, clientID, msg.TerminalID)
 
@@ -219,7 +328,6 @@ func (h *Hub) readLoop(conn *websocket.Conn, sessionID, clientID string) {
 		}
 	}
 }
-
 func getString(m map[string]interface{}, key string) string {
 	if val, ok := m[key]; ok {
 		if str, ok := val.(string); ok {

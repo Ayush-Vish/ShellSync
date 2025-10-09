@@ -9,17 +9,19 @@ interface XtermProps {
   onData: (data: string) => void; 
 }
 
-
 export interface XtermRef {
   write: (data: string) => void;
   focus: () => void;
+  fit: () => void;
+  getCols: () => number;
+  getRows: () => number;
 }
 
 const Xterm = forwardRef<XtermRef, XtermProps>(({ onData }, ref) => {
   const terminalRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<XTerminal | null>(null);
+  const fitAddonRef = useRef<FitAddon | null>(null);
 
-  
   useImperativeHandle(ref, () => ({
     write: (data: string) => {
       termRef.current?.write(data);
@@ -27,18 +29,31 @@ const Xterm = forwardRef<XtermRef, XtermProps>(({ onData }, ref) => {
     focus: () => {
       termRef.current?.focus();
     },
-  }));
+    fit: () => {
+      if (fitAddonRef.current) {
+        fitAddonRef.current.fit();
+      }
+    },
+    getCols: () => {
+      return termRef.current?.cols || 80;
+    },
+    getRows: () => {
+      return termRef.current?.rows || 24;
+    },
+  }), []);
 
   useEffect(() => {
     if (!terminalRef.current) return;
 
     const term = new XTerminal({
       cursorBlink: true,
-
+      fontSize: 14,
+      fontFamily: 'monospace',
     });
     termRef.current = term;
 
     const fitAddon = new FitAddon();
+    fitAddonRef.current = fitAddon;
     term.loadAddon(fitAddon);
 
     term.open(terminalRef.current);
@@ -46,7 +61,10 @@ const Xterm = forwardRef<XtermRef, XtermProps>(({ onData }, ref) => {
     term.focus();
     term.onData(onData);
 
-    const handleResize = () => fitAddon.fit();
+    const handleResize = () => {
+      fitAddon.fit();
+    };
+    
     window.addEventListener('resize', handleResize);
 
     return () => {

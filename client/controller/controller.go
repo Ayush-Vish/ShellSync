@@ -32,14 +32,14 @@ func NewAgent() *Agent {
 		terminalMap: make(map[string]string),
 	}
 }
+
 func getDefaultShell(ctx context.Context) *exec.Cmd {
 	var shell string
 	var args []string
 
 	switch runtime.GOOS {
 	case "windows":
-		// Use PowerShell or cmd based on environment
-		shell = os.Getenv("COMSPEC") // Usually cmd.exe
+		shell = os.Getenv("COMSPEC")
 		if shell == "" {
 			shell = "cmd.exe"
 		}
@@ -55,12 +55,52 @@ func getDefaultShell(ctx context.Context) *exec.Cmd {
 
 	return exec.CommandContext(ctx, shell, args...)
 }
+
+func (agent *Agent) getSize() int64 {
+	var size int64
+	agent.mu.RLock()
+	for _, ptmx := range agent.ptys {
+		if stat, err := ptmx.Stat(); err == nil {
+			size += stat.Size()
+		}
+	}
+	agent.mu.RUnlock()
+	return size
+}
+
+// NEW: Function to resize PTY
+func (a *Agent) resizePty(terminalID string, cols uint32, rows uint32) error {
+	a.mu.RLock()
+	localID, found := a.terminalMap[terminalID]
+	ptmx, ok := a.ptys[localID]
+	a.mu.RUnlock()
+
+	if !found || !ok {
+		return fmt.Errorf("terminal %s not found", terminalID)
+	}
+
+	size := &pty.Winsize{
+		Cols: uint16(cols),
+		Rows: uint16(rows),
+	}
+	fmt.Println("Agent: Resizing terminal", terminalID, "to", cols, "x", rows)
+
+	if err := pty.Setsize(ptmx, size); err != nil {
+		return fmt.Errorf("failed to resize PTY: %w", err)
+	}
+
+	log.Printf("Agent: Resized terminal %s (local ID: %s) to %dx%d",
+		terminalID, localID, cols, rows)
+	return nil
+}
+
 func (a *Agent) spawnNewPty(ctx context.Context, stream pb.ShellSync_StreamClient, backendID string) error {
 	localID := "term-" + uuid.New().String()[:8]
 
 	cmd := getDefaultShell(ctx)
 
 	ptmx, err := pty.Start(cmd)
+
 	if err != nil {
 		log.Printf("Agent: Failed to start PTY for terminal %s: %v", backendID, err)
 		errorMsg := &pb.ClientUpdate{
@@ -77,6 +117,21 @@ func (a *Agent) spawnNewPty(ctx context.Context, stream pb.ShellSync_StreamClien
 		return err
 	}
 	log.Printf("Agent: New PTY started with ID: %s (maps to backend ID: %s)", localID, backendID)
+
+	initialSize := &pty.Winsize{
+		Cols: 80,
+		Rows: 24,
+	}
+	if err := pty.Setsize(ptmx, initialSize); err != nil {
+		log.Printf("Agent: Failed to set initial PTY size for terminal %s: %v", backendID, err)
+	}
+
+	psize, err := pty.GetsizeFull(ptmx)
+	if err != nil {
+		log.Printf("Agent: Failed to get PTY size for terminal %s: %v", backendID, err)
+	} else {
+		log.Printf("PTY Size: Cols=%d, Rows=%d", psize.Cols, psize.Rows)
+	}
 
 	a.mu.Lock()
 	a.ptys[localID] = ptmx
@@ -192,6 +247,29 @@ func startStream(client pb.ShellSyncClient, sessionID string) error {
 				log.Printf("Agent: Failed to spawn new terminal: %v", err)
 			}
 
+		// NEW: Handle terminal resize
+		case *pb.ServerUpdate_ResizeTerminal:
+			resize := payload.ResizeTerminal
+			log.Printf("Agent: Received resize request for terminal %s: %dx%d",
+				resize.GetTerminalId(), resize.GetCols(), resize.GetRows())
+
+			if err := agent.resizePty(resize.GetTerminalId(), resize.GetCols(), resize.GetRows()); err != nil {
+				log.Printf("Agent: Failed to resize terminal %s: %v", resize.GetTerminalId(), err)
+
+				// Send error back to server
+				errorMsg := &pb.ClientUpdate{
+					Payload: &pb.ClientUpdate_TerminalError{
+						TerminalError: &pb.TerminalError{
+							TerminalId: resize.GetTerminalId(),
+							Error:      fmt.Sprintf("Resize failed: %v", err),
+						},
+					},
+				}
+				if sendErr := stream.Send(errorMsg); sendErr != nil {
+					log.Printf("Agent: Failed to send resize error: %v", sendErr)
+				}
+			}
+
 		case *pb.ServerUpdate_ServerHello:
 			log.Printf("Agent: Server says: %s", payload.ServerHello)
 		}
@@ -223,6 +301,7 @@ func Start(host string, port int) {
 	if err != nil {
 		log.Fatalf("Session creation failed: %v", err)
 	}
+
 	log.Printf("Session %s created successfully.", resp.GetSessionId())
 	fmt.Printf("\nShare this URL:\n  ► %s ◄\n\n", resp.GetFrontendUrl())
 
