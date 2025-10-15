@@ -26,19 +26,19 @@ graph TD
 
     subgraph Your_Server
         B[gRPC Server]
-        C{Go Backend}
+        C[Go Backend]
         D[WebSocket Hub]
     end
 
     subgraph Collaborators
         E[Browser 1]
         F[Browser 2]
-        G[Browser N...]
+        G[Browser N]
     end
 
     %% Connections
-    A -->|PTY Output (gRPC)| B
-    B -->|PTY Input (gRPC)| A
+    A -->|PTY Output gRPC| B
+    B -->|PTY Input gRPC| A
     B <--> C
     C <--> D
     E <-->|WebSocket| D
@@ -50,6 +50,7 @@ graph TD
     C -.->|2. Creates Session| A
     A -.->|3. Provides Sharable URL| E
     E -.->|4. Joins via WebSocket| D
+
 ```
 
 1.  **The Agent (Go)**: A command-line tool you run on your machine. It creates a local shell process (PTY) and securely streams the terminal input/output over a high-performance gRPC connection to the backend.
