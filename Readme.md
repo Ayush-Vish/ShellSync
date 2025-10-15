@@ -1,153 +1,172 @@
-<img width="747" height="1024" alt="image" src="https://github.com/user-attachments/assets/ba1ac3a2-b0ab-4da8-8c6e-2ecdeee066d0" />
+# ShellSync: The Real-Time Collaborative Terminal
+![ShellSync Image](image.png)
+**ShellSync** transforms your terminal into an interactive, real-time collaborative canvas. Instantly share your terminal session with anyone, anywhere, right in their browser. Perfect for pair programming, debugging sessions, live demos, and educational purposes.
 
-# ShellSync
+## ✨ Key Features
 
-**A Collaborative Playground of Terminals**
+  * **Real-Time Collaboration**: Share your terminal session live with multiple users. Keystrokes and output are synced instantly for everyone.
+  * **Infinite Canvas Interface**: Say goodbye to traditional tabbed interfaces. Arrange terminals on an infinite, pan-and-zoom canvas.
+  * **Draggable & Resizable Terminals**: Move and resize terminals anywhere on the canvas to create the perfect layout for your needs.
+  * **Cross-Platform Agent**: A single, lightweight command-line agent written in Go that runs on **macOS**, **Windows**, and **Linux**.
+  * **Web-Based Client**: Collaborators don't need to install a thing. They can join from their web browser with a simple URL.
+  * **Self-Hostable**: Control and run the entire stack on your own infrastructure, ensuring your data remains private and secure.
 
-ShellSync is a modern, open-source platform that enables real-time, collaborative terminal sessions. Designed for developers, educators, DevOps, and remote teams, ShellSync transforms your command-line workflow into an interactive, multi-user environment. Whether you're pair programming, conducting live demos, teaching shell skills, or remotely troubleshooting systems, ShellSync brings the power of collaboration directly to your terminal.
+-----
 
----
+## 🏗️ How It Works
 
-## Table of Contents
+ShellSync uses a three-component architecture optimized for performance, scalability, and ease of use.
 
-- [Features](#features)
-- [Architecture](#architecture)
-- [Getting Started](#getting-started)
-- [Usage](#usage)
-- [Configuration](#configuration)
-- [Contributing](#contributing)
-- [License](#license)
-- [Authors](#authors)
-- [Acknowledgements](#acknowledgements)
-- [Contact](#contact)
+```mermaid
+graph TD
+    subgraph Your_Machine
+        A[Go Agent]
+    end
 
----
+    subgraph Your_Server
+        B[gRPC Server]
+        C{Go Backend}
+        D[WebSocket Hub]
+    end
 
-## Features
+    subgraph Collaborators
+        E[Browser 1]
+        F[Browser 2]
+        G[Browser N...]
+    end
 
-- **Live Collaborative Terminals:** Work together in real-time, sharing a single terminal instance with multiple users.
-- **Multi-Platform Support:** Seamlessly supports Linux, macOS, and Windows environments (with PowerShell/Shell support).
-- **Role-Based Access:** Assign roles like owner, collaborator (read/write), or viewer (read-only) for granular control.
-- **Session Recording & Playback:** Automatically record sessions for later review, sharing, or auditing.
-- **Secure & Private:** TLS encryption and optional authentication ensure that your data and commands stay private.
-- **Web & Native Interfaces:** Access sessions via a modern web UI (built with TypeScript and CSS), or via native terminal clients.
-- **Command History & Replay:** Maintain a full log of commands run in each session, with replay capabilities.
-- **Extensible API:** Easily integrate with CI/CD, bots, or monitoring tools thanks to a structured API.
-- **Customizable Themes:** Tweak the terminal look-and-feel with CSS for dark/light mode or personalized themes.
-- **Resource Efficient:** Backend powered by Go for high concurrency and low resource footprint.
+    %% Connections
+    A -->|PTY Output (gRPC)| B
+    B -->|PTY Input (gRPC)| A
+    B <--> C
+    C <--> D
+    E <-->|WebSocket| D
+    F <-->|WebSocket| D
+    G <-->|WebSocket| D
 
----
+    %% Flow annotations
+    A -.->|1. Connects via gRPC| B
+    C -.->|2. Creates Session| A
+    A -.->|3. Provides Sharable URL| E
+    E -.->|4. Joins via WebSocket| D
+```
 
-## Architecture
+1.  **The Agent (Go)**: A command-line tool you run on your machine. It creates a local shell process (PTY) and securely streams the terminal input/output over a high-performance gRPC connection to the backend.
+2.  **The Backend (Go)**: The central hub of the system. It handles gRPC connections from agents, WebSocket connections from web clients, and manages session state. It takes output from the agent and broadcasts it to all connected browsers in that session.
+3.  **The Frontend (React)**: A modern, web-based interface that provides the infinite canvas where terminals are displayed. It communicates with the backend over WebSockets to provide a seamless, real-time experience.
 
-ShellSync is built as a modular system:
+-----
 
-- **Frontend:** Written in TypeScript and CSS, providing a responsive and interactive web-based terminal emulator.
-- **Backend:** Implemented in Go, responsible for session management, security, and process control.
-- **Shell Adapters:** Supports various shells (bash, zsh, sh, PowerShell) and can be extended to others.
-- **Communication:** Uses secure websockets for fast, real-time data exchange between users and servers.
+## 🛠️ Technology Stack
 
----
+| Component      | Technology                                                                               |
+| :------------- | :----------------------------------------------------------------------------------------- |
+| **Frontend** | React, Next.js, TypeScript, Tailwind CSS, Xterm.js                                         |
+| **Backend** | Go, Gorilla WebSocket, Gorilla Mux                                                         |
+| **Agent** | Go, Cobra (for CLI), gRPC                                                                  |
+| **Communication** | gRPC (Agent ↔ Backend), WebSockets (Backend ↔ Frontend)                                  |
+| **API Definition** | Protobuf                                                                                   |
 
-## Getting Started
+-----
+
+## 🚀 Getting Started
+
+Follow these instructions to get ShellSync up and running locally.
 
 ### Prerequisites
 
-- [Node.js](https://nodejs.org/) (v16+ recommended)
-- [Go](https://golang.org/) (v1.18+ recommended)
-- [Yarn](https://yarnpkg.com/) or [npm](https://npmjs.com/)
-- Modern web browser (for client)
-- (Optional) TLS certificate for production deployment
+  * Go 1.21+
+  * Node.js 18+ and npm
+  * `protoc` (Protocol Buffers compiler)
 
-### Installation
+### Installation & Setup
 
-1. **Clone the Repository**
-   ```bash
-   git clone https://github.com/Ayush-Vish/ShellSync.git
-   cd ShellSync
-   ```
+1.  **Clone the repository:**
 
-2. **Install Frontend Dependencies**
-   ```bash
-   cd client
-   yarn install     # or npm install
-   ```
+    ```sh
+    git clone https://github.com/your-username/shellsync.git
+    cd shellsync
+    ```
 
-3. **Build the Frontend**
-   ```bash
-   yarn build       # or npm run build
-   ```
+2.  **Generate Protobuf Code:**
+    The project uses a `Makefile` to simplify tasks. Generate the necessary Go and gRPC code from the `.proto` file.
 
-4. **Build the Backend**
-   ```bash
-   cd ../server
-   go build -o shellsync-server main.go
-   ```
+    ```sh
+    make proto
+    ```
 
-5. **Run the Server**
-   ```bash
-   ./shellsync-server
-   ```
+3.  **Install Frontend Dependencies:**
 
-6. **Access the App**
-   - Open your browser at `http://localhost:PORT` (default port as per config or server output).
+    ```sh
+    cd frontend
+    npm install
+    cd ..
+    ```
 
----
+4.  **Install Backend Dependencies:**
 
-## Usage
+    ```sh
+    go mod tidy
+    ```
 
-- **Start a Session:** After launching the backend, navigate to the web UI, and create a new collaborative terminal session.
-- **Invite Collaborators:** Share your session invite link or access code. You can control permissions (view/edit).
-- **Interact:** All participants see a synchronized terminal. Commands, outputs, and even cursor positions are shared live.
-- **Record & Replay:** Use the session recording feature to save and play back terminal activity for auditing or teaching.
+### Running the Application
 
----
+1.  **Start the Backend Server:**
 
-## Configuration
+    ```sh
+    make run-server
+    ```
 
-ShellSync supports a variety of configuration options via environment variables or config files:
+    This will start the gRPC and WebSocket server on ports `5001` and `5000` respectively.
 
-- `PORT`: Set the listening port for the backend server.
-- `TLS_CERT`, `TLS_KEY`: Paths to TLS certificate and key for HTTPS.
-- `SESSION_TIMEOUT`: Auto-terminate inactive sessions after X minutes.
-- `AUTH_MODE`: Set authentication mode (none, password, OAuth, etc.).
-- `ALLOWED_ORIGINS`: Restrict which web origins can connect.
+2.  **Run the Agent (in a new terminal):**
 
-See `config.example.json` or [docs/CONFIG.md](docs/CONFIG.md) for all available options.
+    ```sh
+    make run-client
+    ```
 
----
+    The agent will connect to the server, create a session, and output a sharable URL.
 
-## Contributing
+3.  **Start Collaborating:**
+    Open the URL provided by the agent in your web browser. Share this URL with others to have them join your session instantly.
 
-We ❤️ contributions! To get involved:
+-----
 
-1. Fork the repository.
-2. Create a new branch: `git checkout -b feature/your-feature`.
-3. Commit your changes: `git commit -am 'Add a cool feature'`.
-4. Push to your fork: `git push origin feature/your-feature`.
-5. Open a Pull Request describing your change.
+## 📦 Building for Production
 
-Please see [CONTRIBUTING.md](CONTRIBUTING.md) for style guidelines, documentation, and more.
+You can use the `Makefile` to build production-ready binaries.
 
----
+  * **Build the Server:**
 
-## License
+    ```sh
+    make build-server
+    ```
 
-This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
+    The binary will be placed in `bin/server`.
 
----
+  * **Build the Client (Agent):**
+    The `build-client` command is a powerful cross-compiler that builds the agent for multiple operating systems and architectures.
 
-## Authors
+    ```sh
+    make build-client
+    ```
 
-- [Ayush Vish](https://github.com/Ayush-Vish) (Maintainer)
-- [List of Contributors](https://github.com/Ayush-Vish/ShellSync/graphs/contributors)
+    The binaries will be placed in the `bin/` directory, ready for distribution.
 
----
+-----
 
-## Acknowledgements
+## 🤝 Contributing
 
-- Inspired by collaborative terminal tools like [tmate](https://tmate.io/) and [gotty](https://github.com/yudai/gotty)
-- Thanks to all open source contributors, testers, and users!
+Contributions are what make the open-source community such an amazing place to learn, inspire, and create. Any contributions you make are **greatly appreciated**.
 
----
+1.  Fork the Project
+2.  Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
+3.  Commit your Changes (`git commit -m 'Add some AmazingFeature'`)
+4.  Push to the Branch (`git push origin feature/AmazingFeature`)
+5.  Open a Pull Request
 
+-----
+
+## 📜 License
+
+Distributed under the MIT License. See `LICENSE` for more information.
