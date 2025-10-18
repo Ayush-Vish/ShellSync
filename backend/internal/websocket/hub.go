@@ -2,7 +2,9 @@ package websocket
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
+	"math/rand"
 	"net/http"
 	"sync"
 	"time"
@@ -41,9 +43,15 @@ func (h *Hub) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 	sessionID := r.URL.Query().Get("session_id")
 	clientID := r.URL.Query().Get("client_id")
 
-	if sessionID == "" || clientID == "" {
-		http.Error(w, "session_id and client_id are required", http.StatusBadRequest)
+	if sessionID == "" {
+		http.Error(w, "session_id is required", http.StatusBadRequest)
 		return
+	}
+
+	// Generate client_id if not provided
+	if clientID == "" {
+		clientID = "client-" + fmt.Sprintf("%x", rand.Intn(0xffffff))
+		log.Printf("Generated client ID: %s for session %s", clientID, sessionID)
 	}
 
 	session, exists := h.service.GetSession(sessionID)
@@ -59,8 +67,8 @@ func (h *Hub) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.registerClient(conn, session, clientID)
-	go h.readLoop(conn, sessionID, clientID)
+	// Don't register client yet - wait for authentication
+	go h.authenticateAndReadLoop(conn, sessionID, clientID, session)
 }
 func (h *Hub) registerClient(conn *websocket.Conn, session *types.Session, clientID string) {
 	h.mu.Lock()
@@ -146,6 +154,97 @@ func (h *Hub) unregisterClient(clientID, sessionID string) {
 	}
 }
 
+func (h *Hub) authenticateAndReadLoop(conn *websocket.Conn, sessionID, clientID string, session *types.Session) {
+	defer conn.Close()
+
+	// Wait for authentication message
+	conn.SetReadDeadline(time.Now().Add(30 * time.Second)) // 30 second timeout for auth
+	
+	var authMsg map[string]interface{}
+	if err := conn.ReadJSON(&authMsg); err != nil {
+		log.Printf("Failed to read auth message from client %s: %v", clientID, err)
+		conn.WriteJSON(types.Message{
+			Type:  "auth_error",
+			Error: "Authentication timeout or invalid message",
+		})
+		return
+	}
+
+	msgType := getString(authMsg, "type")
+	password := getString(authMsg, "password")
+	clientName := getString(authMsg, "name")
+	
+	log.Printf("Received auth message - type: %s, password: %s, name: '%s'", msgType, password, clientName)
+	
+	if clientName == "" {
+		clientName = "Anonymous"
+		log.Printf("Name was empty, defaulting to Anonymous")
+	}
+
+	if msgType != "authenticate" {
+		log.Printf("Client %s sent wrong message type during auth: %s", clientID, msgType)
+		conn.WriteJSON(types.Message{
+			Type:  "auth_error",
+			Error: "Expected authentication message",
+		})
+		return
+	}
+
+	// Check password
+	session.Mu.RLock()
+	correctPassword := session.Password
+	session.Mu.RUnlock()
+
+	if password != correctPassword {
+		log.Printf("Client %s failed authentication for session %s", clientID, sessionID)
+		conn.WriteJSON(types.Message{
+			Type:  "auth_error",
+			Error: "Invalid password",
+		})
+		return
+	}
+
+	// Authentication successful
+	log.Printf("Client %s authenticated successfully for session %s with name: %s", clientID, sessionID, clientName)
+	
+	// Determine permission: check if client name matches agent hostname
+	permission := "read-only"
+	session.Mu.Lock()
+	if clientName == session.AgentHostname {
+		// Client name matches agent hostname - they are the host
+		session.HostClientID = clientID
+		permission = "host"
+		log.Printf("Client %s identified as host (name '%s' matches agent hostname '%s')", clientID, clientName, session.AgentHostname)
+	} else {
+		log.Printf("Client %s is a regular user (name '%s' does not match agent hostname '%s')", clientID, clientName, session.AgentHostname)
+	}
+	session.Mu.Unlock()
+
+	// Send authentication success with permission
+	conn.WriteJSON(types.Message{
+		Type:       "auth_success",
+		Permission: permission,
+		ClientID:   clientID,
+	})
+
+	// Reset read deadline
+	conn.SetReadDeadline(time.Time{})
+
+	// Now register the client and start normal read loop
+	h.registerClient(conn, session, clientID)
+	
+	// Update client permission and name in session
+	session.Mu.Lock()
+	if client, exists := session.Clients[clientID]; exists {
+		client.Permission = permission
+		client.Name = clientName
+	}
+	session.Mu.Unlock()
+
+	// Start the normal read loop
+	h.readLoop(conn, sessionID, clientID)
+}
+
 func (h *Hub) writeLoop(c *client, clientID string) {
 	for msg := range c.writeChan {
 		c.mu.Lock()
@@ -162,6 +261,25 @@ func (h *Hub) writeLoop(c *client, clientID string) {
 		c.mu.Unlock()
 	}
 }
+
+// Helper function to check if client has write permission
+func (h *Hub) hasWritePermission(sessionID, clientID string) bool {
+	session, exists := h.service.GetSession(sessionID)
+	if !exists {
+		return false
+	}
+	
+	session.Mu.RLock()
+	defer session.Mu.RUnlock()
+	
+	client, exists := session.Clients[clientID]
+	if !exists {
+		return false
+	}
+	
+	return client.Permission == "host" || client.Permission == "read-write"
+}
+
 func (h *Hub) readLoop(conn *websocket.Conn, sessionID, clientID string) {
 	defer func() {
 		h.unregisterClient(clientID, sessionID)
@@ -188,6 +306,11 @@ func (h *Hub) readLoop(conn *websocket.Conn, sessionID, clientID string) {
 
 		switch msg.Type {
 		case "pty_input":
+			// Check write permission
+			if !h.hasWritePermission(sessionID, clientID) {
+				log.Printf("Client %s attempted pty_input without write permission", clientID)
+				continue
+			}
 			if msg.TerminalID == "" {
 				log.Printf("Received pty_input without terminal_id from client %s", clientID)
 				continue
@@ -195,6 +318,11 @@ func (h *Hub) readLoop(conn *websocket.Conn, sessionID, clientID string) {
 			h.service.ForwardInputToAgent(sessionID, msg.TerminalID, []byte(msg.Content))
 
 		case "create_terminal":
+			// Check write permission
+			if !h.hasWritePermission(sessionID, clientID) {
+				log.Printf("Client %s attempted create_terminal without write permission", clientID)
+				continue
+			}
 			var payload struct {
 				FrontendID string  `json:"frontendId"`
 				X          float32 `json:"x"`
@@ -322,6 +450,86 @@ func (h *Hub) readLoop(conn *websocket.Conn, sessionID, clientID string) {
 
 		case "subscribe":
 			h.sendTerminalHistory(sessionID, clientID, msg.TerminalID)
+
+		case "get_clients":
+			// Send list of clients with their permissions
+			session, exists := h.service.GetSession(sessionID)
+			if !exists {
+				continue
+			}
+			
+			session.Mu.RLock()
+			clientList := make([]types.ClientInfo, 0, len(session.Clients))
+			for _, client := range session.Clients {
+				clientList = append(clientList, types.ClientInfo{
+					ClientID:   client.ID,
+					Name:       client.Name,
+					Permission: client.Permission,
+				})
+			}
+			session.Mu.RUnlock()
+			
+			// Send to requesting client
+			if c, ok := h.clients[clientID]; ok {
+				c.mu.Lock()
+				if !c.closed {
+					select {
+					case c.writeChan <- types.Message{
+						Type:    "clients_list",
+						Clients: clientList,
+					}:
+					default:
+						log.Printf("Write channel for client %s is full", clientID)
+					}
+				}
+				c.mu.Unlock()
+			}
+
+		case "update_permission":
+			// Only host can update permissions
+			session, exists := h.service.GetSession(sessionID)
+			if !exists {
+				continue
+			}
+			
+			session.Mu.RLock()
+			isHost := session.HostClientID == clientID
+			session.Mu.RUnlock()
+			
+			if !isHost {
+				log.Printf("Client %s attempted to update permissions without being host", clientID)
+				continue
+			}
+			
+			var payload struct {
+				TargetClientID string `json:"targetClientId"`
+				Permission     string `json:"permission"`
+			}
+			if err := json.Unmarshal([]byte(msg.Content), &payload); err != nil {
+				log.Printf("Error unmarshalling update_permission payload: %v", err)
+				continue
+			}
+			
+			// Validate permission value
+			if payload.Permission != "read-only" && payload.Permission != "read-write" {
+				log.Printf("Invalid permission value: %s", payload.Permission)
+				continue
+			}
+			
+			// Update permission
+			session.Mu.Lock()
+			if client, exists := session.Clients[payload.TargetClientID]; exists {
+				client.Permission = payload.Permission
+				log.Printf("Host %s updated permission for client %s to %s", clientID, payload.TargetClientID, payload.Permission)
+			}
+			session.Mu.Unlock()
+			
+			// Broadcast permission update to all clients
+			h.BroadcastToSession(sessionID, types.Message{
+				Type:       "permission_updated",
+				ClientID:   payload.TargetClientID,
+				Permission: payload.Permission,
+			})
 
 		default:
 			log.Printf("Received unknown message type '%s' from client %s", msg.Type, clientID)

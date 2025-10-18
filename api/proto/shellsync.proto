@@ -19,6 +19,7 @@ message CreateRequest {
 message CreateResponse {
   string session_id = 1;
   string frontend_url = 2;
+  string password = 3;
 }
 
 message ClientUpdate {

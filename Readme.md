@@ -1,5 +1,6 @@
 # ShellSync: The Real-Time Collaborative Terminal
-<img width="747" height="1024" alt="image" src="https://github.com/user-attachments/assets/8b617903-e5be-4189-8999-1f864a51b76a" />
+
+![alt text](shell.jpg)
 
 **ShellSync** transforms your terminal into an interactive, real-time collaborative canvas. Instantly share your terminal session with anyone, anywhere, right in their browser. Perfect for pair programming, debugging sessions, live demos, and educational purposes.
 

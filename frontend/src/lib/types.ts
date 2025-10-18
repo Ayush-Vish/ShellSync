@@ -25,6 +25,9 @@ export interface SocketMessage {
   terminals?: any[];
   cols?: number;
   rows?: number;
+  permission?: string;
+  clientId?: string;
+  clients?: Array<{clientId: string; name?: string; permission: string}>;
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function normalizeMessage(data: any): SocketMessage {
@@ -38,6 +41,9 @@ export function normalizeMessage(data: any): SocketMessage {
         terminals: data.terminals,
         cols: data.cols,
         rows: data.rows,
+        permission: data.permission,
+        clientId: data.clientId || data.client_id,
+        clients: data.clients,
     };
 }
 export interface DraggableTerminalRef {

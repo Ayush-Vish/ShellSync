@@ -27,6 +27,7 @@ export interface DraggableTerminalRef {
 interface DraggableTerminalProps {
   item: CanvasItem;
   onPositionChange: (id: string, position: { x: number; y: number }) => void;
+  onDimensionChange?: (id: string, dimensions: { width: number; height: number }) => void;
   onRemove: (id: string) => void;
   sendMessage: (
     type: SocketMessage["type"],
@@ -47,6 +48,7 @@ const DraggableTerminal = forwardRef<
     {
       item,
       onPositionChange,
+      onDimensionChange,
       onRemove,
       sendMessage,
       zoom = 1,
@@ -63,6 +65,11 @@ const DraggableTerminal = forwardRef<
       width: item.width || DEFAULT_WIDTH,
       height: item.height || DEFAULT_HEIGHT,
     });
+    
+    
+    const dimensionsRef = useRef(dimensions)
+
+
     const [isMaximized, setIsMaximized] = useState(false);
     const [originalState, setOriginalState] = useState({
       width: item.width || DEFAULT_WIDTH,
@@ -79,6 +86,17 @@ const DraggableTerminal = forwardRef<
         });
       }
     }, [item.width, item.height]);
+
+    // Fit terminal when dimensions change
+    useEffect(() => {
+      if (xTermRef.current && item.status === 'ready') {
+        // Small delay to ensure DOM has updated
+        const timer = setTimeout(() => {
+          xTermRef.current?.fit();
+        }, 50);
+        return () => clearTimeout(timer);
+      }
+    }, [dimensions.width, dimensions.height, item.status]);
 
     // Handle window resize to ensure terminal fits
     useEffect(() => {
@@ -101,7 +119,7 @@ const DraggableTerminal = forwardRef<
           height: dimensions.height
         }), item.terminalId);
       }
-    }, [item.position, dimensions, item.terminalId, sendMessage]);
+    }, [item.position, item.terminalId, sendMessage]);
 
     // --- REMOVE THE OLD sendSizeUpdate FUNCTION ---
     // (It was here, and it was guessing.)
@@ -122,7 +140,11 @@ const DraggableTerminal = forwardRef<
       return () => clearTimeout(timer);
     }, [dimensions]);
 
-
+    // Keep the ref updated with the latest dimensions state
+    // This does not cause functions that read the ref to be re-created
+    useEffect(() => {
+      dimensionsRef.current = dimensions;
+    }, [dimensions]);
     useImperativeHandle(ref, () => ({
       write: (data: string) => {
         if (item.status === "ready") {
@@ -131,28 +153,33 @@ const DraggableTerminal = forwardRef<
       },
     }));
 
-    // --- SIMPLIFY THIS FUNCTION ---
-    // Remove the sendMessage call and all the guessing logic.
-    // This function's ONLY job is to update the pixel state.
+    // Update dimensions and broadcast to other clients
     const handleResize = useCallback((widthDelta: number, heightDelta: number) => {
       setDimensions(prev => {
         const newWidth = Math.min(Math.max(prev.width + widthDelta, MIN_WIDTH), MAX_WIDTH);
         const newHeight = Math.min(Math.max(prev.height + heightDelta, MIN_HEIGHT), MAX_HEIGHT);
-        return {
+        const newDimensions = {
           width: newWidth,
           height: newHeight
         };
+        
+        // Broadcast dimension change to other clients
+        onDimensionChange?.(item.id, newDimensions);
+        
+        return newDimensions;
       });
-    }, []); // Removed dependencies
+    }, [item.id, onDimensionChange]);
 
     const handleMaximize = useCallback(() => {
       if (isMaximized) {
         // Restore to original size and position
-        setDimensions({
+        const newDimensions = {
           width: originalState.width,
           height: originalState.height
-        });
+        };
+        setDimensions(newDimensions);
         onPositionChange(item.id, originalState.position);
+        onDimensionChange?.(item.id, newDimensions);
       } else {
         // Save current state and maximize
         setOriginalState({
@@ -165,10 +192,12 @@ const DraggableTerminal = forwardRef<
         const maxWidth = Math.min(window.innerWidth * 0.9, MAX_WIDTH);
         const maxHeight = Math.min(window.innerHeight * 0.9, MAX_HEIGHT);
         
-        setDimensions({
+        const newDimensions = {
           width: maxWidth,
           height: maxHeight
-        });
+        };
+        setDimensions(newDimensions);
+        onDimensionChange?.(item.id, newDimensions);
         
         // Center on screen
         const centerX = (window.innerWidth - maxWidth) / 2;
@@ -197,19 +226,19 @@ const DraggableTerminal = forwardRef<
       [sendMessage, item.terminalId, item.status]
     );
     
-    // --- ADD THIS NEW HANDLER ---
     // This function is called by the <Xterm> component's onResize prop
     // It sends the *accurate* dimensions to the backend.
     const handleTerminalResize = useCallback((size: { cols: number; rows: number }) => {
       if (item.terminalId && item.status === "ready") {
+        const currentDimensions = dimensionsRef.current
         sendMessage('resize', JSON.stringify({
           cols: size.cols,
           rows: size.rows,
-          width: Math.round(dimensions.width),
-          height: Math.round(dimensions.height)
+          width: Math.round(currentDimensions.width),
+          height: Math.round(currentDimensions.height)
         }), item.terminalId);
       }
-    }, [item.terminalId, item.status, dimensions.width, dimensions.height, sendMessage]);
+    }, [item.terminalId, item.status, sendMessage]);
 
     const handlePointerDown = (e: React.PointerEvent) => {
       // ... (no changes in this function)

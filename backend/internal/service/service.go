@@ -42,9 +42,15 @@ func (s *ShellSyncService) CreateSession(ctx context.Context, req *pb.CreateRequ
 	defer s.mu.Unlock()
 
 	sessionID := uuid.New().String()[:8]
+	
+	// Generate a 6-digit password
+	password := fmt.Sprintf("%06d", rand.Intn(1000000))
+	
 	session := &types.Session{
 		ID:             sessionID,
 		Host:           req.Host,
+		Password:       password,
+		AgentHostname:  req.Host, // Store agent hostname for host identification
 		Clients:        make(map[string]*types.Client),
 		Terminals:      make(map[string]*types.Terminal),
 		CreatedAt:      time.Now(),
@@ -52,11 +58,12 @@ func (s *ShellSyncService) CreateSession(ctx context.Context, req *pb.CreateRequ
 	}
 	s.sessions[sessionID] = session
 
-	log.Printf("Created session: %s for host: %s", sessionID, req.Host)
-	frontendClientID := "user-" + uuid.New().String()[:5]
+	log.Printf("Created session: %s for host: %s with password: %s", sessionID, req.Host, password)
+	
 	return &pb.CreateResponse{
 		SessionId:   sessionID,
-		FrontendUrl: fmt.Sprintf("http://localhost:3000/ws/%s?client_id=%s", sessionID, frontendClientID),
+		FrontendUrl: fmt.Sprintf("http://localhost:3000/ws/%s", sessionID),
+		Password:    password,
 	}, nil
 }
 
@@ -310,7 +317,11 @@ func (s *ShellSyncService) AddClientToSession(sessionID, clientID string) bool {
 	session.Mu.Lock()
 	defer session.Mu.Unlock()
 	if _, ok := session.Clients[clientID]; !ok {
-		session.Clients[clientID] = &types.Client{ID: clientID, LastSeen: time.Now()}
+		session.Clients[clientID] = &types.Client{
+			ID:         clientID,
+			LastSeen:   time.Now(),
+			Permission: "read-only", // Default permission, will be updated after auth
+		}
 	}
 	return true
 }

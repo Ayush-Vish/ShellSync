@@ -3,25 +3,25 @@
 import React, { useState, useRef, useCallback, createRef, useEffect } from 'react';
 import InfiniteCanvas, { CanvasRef } from '@/components/canvas/InfiniteCanvas';
 import DraggableTerminal, { DraggableTerminalRef } from "@/components/terminal/DraggableTerminal";
-import { useParams, useSearchParams } from "next/navigation";
-import { useTerminalSocket } from "@/hooks/useSocket";
+import { useParams } from "next/navigation";
+import { useAuthenticatedSocket } from "@/hooks/useAuthenticatedSocket";
+import PasswordPrompt from "@/components/auth/PasswordPrompt";
+import PermissionsSidebar, { Client } from "@/components/sidebar/PermissionsSidebar";
 import Toolbar from '@/components/canvas/Toolbar';
 import { CanvasItem, SocketMessage } from '@/lib/types';
 
 export default function CanvasPage() {
     const [items, setItems] = useState<CanvasItem[]>([]);
     const [isCreatingTerminal, setIsCreatingTerminal] = useState(false);
+    const [permission, setPermission] = useState<'host' | 'read-write' | 'read-only' | null>(null);
+    const [clients, setClients] = useState<Client[]>([]);
 
     const canvasRef = useRef<CanvasRef>(null);
     const terminalRefs = useRef(new Map<string, React.RefObject<DraggableTerminalRef | null>>());
     const subscribedTerminalIds = useRef(new Set<string>());
 
     const params = useParams();
-    const searchParams = useSearchParams();
     const sessionId = params.slug as string;
-    const [clientId] = useState(() =>
-        searchParams.get('client_id') || `client_${Math.random().toString(36).substr(2, 9)}`
-    );
 
     const handleSocketMessage = useCallback((message: SocketMessage) => {
         console.log('Canvas received socket message:', message);
@@ -33,12 +33,13 @@ export default function CanvasPage() {
                     .filter(term => !existingIds.has(term.frontendId))
                     .map(term => ({
                         id: term.frontendId,
+                        type: 'terminal' as const,
                         position: { x: term.x, y: term.y },
                         color: "#4bd2f3",
                         terminalId: term.terminalId,
                         status: term.status as 'creating' | 'ready' | 'error',
-                        width: term.width || 640, // Add width from backend
-                        height: term.height || 400, // Add height from backend
+                        width: term.width || 640,
+                        height: term.height || 400,
                     }));
                 
                 newItems.forEach(item => {
@@ -79,12 +80,13 @@ export default function CanvasPage() {
                     console.log(`Creating new terminal for other client, frontendId: ${message.frontendId}`);
                     const newItem: CanvasItem = {
                         id: message.frontendId!,
+                        type: 'terminal',
                         position: { x: message.x ?? 200, y: message.y ?? 200 },
                         color: "#4bd2f3",
                         terminalId: message.terminalId,
                         status: 'ready',
-                        width: message.width || 640, // Set width
-                        height: message.height || 400, // Set height
+                        width: message.width || 640,
+                        height: message.height || 400,
                     };
                     updatedItems.push(newItem);
                 }
@@ -164,16 +166,40 @@ export default function CanvasPage() {
             });
             return;
         }
+
+        // Handle client list updates
+        if (message.type === 'clients_list' && message.clients) {
+            console.log('Received clients list:', message.clients);
+            setClients(message.clients as Client[]);
+            return;
+        }
+
+        // Handle permission updates
+        if (message.type === 'permission_updated' && message.clientId && message.permission) {
+            console.log('Permission updated:', message.clientId, message.permission);
+            setClients(prev => prev.map(client =>
+                client.clientId === message.clientId
+                    ? { ...client, permission: message.permission as 'host' | 'read-write' | 'read-only' }
+                    : client
+            ));
+            return;
+        }
     }, []); 
 
+    const handleAuthSuccess = useCallback((clientId: string, userPermission: string) => {
+        console.log('Authentication successful:', clientId, userPermission);
+        setPermission(userPermission as 'host' | 'read-write' | 'read-only');
+    }, []);
+
     const {
-        sendMessage,
         isConnected,
-        removeTerminal,
-    } = useTerminalSocket(
+        authState,
+        authenticate,
+        sendMessage,
+    } = useAuthenticatedSocket(
         sessionId,
-        clientId,
-        handleSocketMessage
+        handleSocketMessage,
+        handleAuthSuccess
     );
 
     useEffect(() => {
@@ -242,15 +268,58 @@ export default function CanvasPage() {
         });
     }, [sendMessage]);
 
+    const handleDimensionChange = useCallback((id: string, dimensions: { width: number; height: number }) => {
+        setItems(currentItems => {
+            const updatedItems = currentItems.map(item =>
+                item.id === id ? { ...item, width: dimensions.width, height: dimensions.height } : item
+            );
+            
+            const resizedItem = updatedItems.find(item => item.id === id);
+            if (resizedItem?.terminalId) {
+                const payload = {
+                    x: resizedItem.position.x,
+                    y: resizedItem.position.y,
+                    width: dimensions.width,
+                    height: dimensions.height,
+                };
+                sendMessage(
+                    'position_update',
+                    JSON.stringify(payload),
+                    resizedItem.terminalId
+                );
+            }
+            
+            return updatedItems;
+        });
+    }, [sendMessage]);
+
     const handleRemoveItem = useCallback((id: string) => {
-        const itemToRemove = items.find(item => item.id === id);
-        if (itemToRemove && itemToRemove.terminalId) {
-            removeTerminal(itemToRemove.terminalId);
-        }
-    }, [items, removeTerminal]);
+        setItems(prevItems => prevItems.filter(item => item.id !== id));
+    }, []);
+
+    // Show password prompt if not authenticated
+    if (!authState.isAuthenticated) {
+        return (
+            <PasswordPrompt
+                sessionId={sessionId}
+                onSubmit={(password, name) => authenticate(password, name)}
+                error={authState.authError || undefined}
+            />
+        );
+    }
 
     return (
         <div className="h-screen w-screen bg-neutral-800">
+            {/* Permissions Sidebar - only for host */}
+            {permission === 'host' && (
+                <PermissionsSidebar
+                    isHost={true}
+                    currentClientId={authState.clientId || ''}
+                    clients={clients}
+                    sendMessage={sendMessage}
+                />
+            )}
+
             <Toolbar
                 onAddItem={handleAddItem}
                 onReset={handleResetView}
@@ -267,9 +336,10 @@ export default function CanvasPage() {
                             key={item.id}
                             item={item}
                             onPositionChange={handlePositionChange}
+                            onDimensionChange={handleDimensionChange}
                             onRemove={handleRemoveItem}
                             sessionId={sessionId}
-                            clientId={clientId}
+                            clientId={authState.clientId || ''}
                             sendMessage={sendMessage}
                         />
                     );

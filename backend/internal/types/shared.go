@@ -27,6 +27,16 @@ type Message struct {
 	Width      int            `json:"width,omitempty"`
 	Height     int            `json:"height,omitempty"`
 	Terminals  []TerminalInfo `json:"terminals,omitempty"`
+	Password   string         `json:"password,omitempty"`   // For authentication messages
+	Permission string         `json:"permission,omitempty"` // For permission updates
+	ClientID   string         `json:"clientId,omitempty"`   // For client-specific messages
+	Clients    []ClientInfo   `json:"clients,omitempty"`    // For client list
+}
+
+type ClientInfo struct {
+	ClientID   string `json:"clientId"`
+	Name       string `json:"name,omitempty"`
+	Permission string `json:"permission"` // "host", "read-write", "read-only"
 }
 
 // ResizeTerminalCmd with AgentCommand interface implementation
@@ -70,6 +80,9 @@ type PtyOutputBroadcaster interface {
 type Session struct {
 	ID             string
 	Host           string
+	Password       string     // 6-digit password for session access
+	AgentHostname  string     // Hostname of the agent (used to identify host)
+	HostClientID   string     // Client ID of the host (creator)
 	CreatedAt      time.Time
 	Clients        map[string]*Client
 	AgentInputChan chan AgentCommand
@@ -96,7 +109,8 @@ type CreateTerminalCmd struct {
 func (CreateTerminalCmd) isAgentCommand() {}
 
 type Client struct {
-	ID       string
-	Name     string
-	LastSeen time.Time
+	ID         string
+	Name       string
+	Permission string    // "host", "read-write", "read-only"
+	LastSeen   time.Time
 }

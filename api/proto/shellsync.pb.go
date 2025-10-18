@@ -7,12 +7,11 @@
 package proto
 
 import (
+	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
+	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
-
-	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
-	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 )
 
 const (
@@ -70,6 +69,7 @@ type CreateResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	SessionId     string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
 	FrontendUrl   string                 `protobuf:"bytes,2,opt,name=frontend_url,json=frontendUrl,proto3" json:"frontend_url,omitempty"`
+	Password      string                 `protobuf:"bytes,3,opt,name=password,proto3" json:"password,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -114,6 +114,13 @@ func (x *CreateResponse) GetSessionId() string {
 func (x *CreateResponse) GetFrontendUrl() string {
 	if x != nil {
 		return x.FrontendUrl
+	}
+	return ""
+}
+
+func (x *CreateResponse) GetPassword() string {
+	if x != nil {
+		return x.Password
 	}
 	return ""
 }
@@ -717,11 +724,12 @@ const file_api_proto_shellsync_proto_rawDesc = "" +
 	"\n" +
 	"\x19api/proto/shellsync.proto\x12\tshellsync\"#\n" +
 	"\rCreateRequest\x12\x12\n" +
-	"\x04host\x18\x01 \x01(\tR\x04host\"R\n" +
+	"\x04host\x18\x01 \x01(\tR\x04host\"n\n" +
 	"\x0eCreateResponse\x12\x1d\n" +
 	"\n" +
 	"session_id\x18\x01 \x01(\tR\tsessionId\x12!\n" +
-	"\ffrontend_url\x18\x02 \x01(\tR\vfrontendUrl\"\xc5\x02\n" +
+	"\ffrontend_url\x18\x02 \x01(\tR\vfrontendUrl\x12\x1a\n" +
+	"\bpassword\x18\x03 \x01(\tR\bpassword\"\xc5\x02\n" +
 	"\fClientUpdate\x12I\n" +
 	"\x0finitial_message\x18\x01 \x01(\v2\x1e.shellsync.InitialAgentMessageH\x00R\x0einitialMessage\x12:\n" +
 	"\n" +

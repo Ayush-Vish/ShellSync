@@ -68,7 +68,6 @@ func (agent *Agent) getSize() int64 {
 	return size
 }
 
-// NEW: Function to resize PTY
 func (a *Agent) resizePty(terminalID string, cols uint32, rows uint32) error {
 	a.mu.RLock()
 	localID, found := a.terminalMap[terminalID]
@@ -303,7 +302,19 @@ func Start(host string, port int) {
 	}
 
 	log.Printf("Session %s created successfully.", resp.GetSessionId())
-	fmt.Printf("\nShare this URL:\n  ► %s ◄\n\n", resp.GetFrontendUrl())
+	fmt.Printf("\n╔════════════════════════════════════════════════════════════╗\n")
+	fmt.Printf("║                   SESSION CREATED                          ║\n")
+	fmt.Printf("╠════════════════════════════════════════════════════════════╣\n")
+	fmt.Printf("║  Session ID: %-45s ║\n", resp.GetSessionId())
+	fmt.Printf("║  Password:   %-45s ║\n", resp.GetPassword())
+	fmt.Printf("║  Host name to Write in frontend: %-25s ║\n", agentName)
+	fmt.Printf("╠════════════════════════════════════════════════════════════╣\n")
+	fmt.Printf("║  Share this URL with collaborators:                        ║\n")
+	fmt.Printf("║  ► %-54s  ║\n", resp.GetFrontendUrl())
+	fmt.Printf("╠════════════════════════════════════════════════════════════╣\n")
+	fmt.Printf("║  ⚠️  Keep the password secure!                              ║\n")
+	fmt.Printf("║  Only share it with trusted collaborators.                 ║\n")
+	fmt.Printf("╚════════════════════════════════════════════════════════════╝\n\n")
 
 	if err := startStream(client, resp.GetSessionId()); err != nil {
 		log.Fatalf("Stream failed: %v", err)
