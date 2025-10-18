@@ -60,23 +60,25 @@ const DraggableTerminal = forwardRef<
     const initialItemPosition = useRef({ x: 0, y: 0 });
     const xTermRef = useRef<XtermRef>(null);
     const [dimensions, setDimensions] = useState({
-      width: DEFAULT_WIDTH,
-      height: DEFAULT_HEIGHT,
+      width: item.width || DEFAULT_WIDTH,
+      height: item.height || DEFAULT_HEIGHT,
     });
     const [isMaximized, setIsMaximized] = useState(false);
     const [originalState, setOriginalState] = useState({
-      width: DEFAULT_WIDTH,
-      height: DEFAULT_HEIGHT,
+      width: item.width || DEFAULT_WIDTH,
+      height: item.height || DEFAULT_HEIGHT,
       position: { x: 0, y: 0 }
     });
 
-    // Initialize with default size
+    // Update dimensions when item dimensions change (e.g., from backend sync)
     useEffect(() => {
-      setDimensions({
-        width: DEFAULT_WIDTH,
-        height: DEFAULT_HEIGHT,
-      });
-    }, []);
+      if (item.width !== undefined && item.height !== undefined) {
+        setDimensions({
+          width: item.width,
+          height: item.height,
+        });
+      }
+    }, [item.width, item.height]);
 
     // Handle window resize to ensure terminal fits
     useEffect(() => {
@@ -101,30 +103,25 @@ const DraggableTerminal = forwardRef<
       }
     }, [item.position, dimensions, item.terminalId, sendMessage]);
 
-    // Send size updates via WebSocket
-    // In DraggableTerminal component, update sendSizeUpdate
-const sendSizeUpdate = useCallback(() => {
-  if (item.terminalId) {
-    const cols = Math.max(10, Math.floor(dimensions.width / 8));
-    const rows = Math.max(5, Math.floor(dimensions.height / 16));
-    
-    sendMessage('resize', JSON.stringify({
-      cols: cols,
-      rows: rows,
-      width: Math.round(dimensions.width),
-      height: Math.round(dimensions.height)
-    }), item.terminalId);
-  }
-}, [dimensions, item.terminalId, sendMessage]);
+    // --- REMOVE THE OLD sendSizeUpdate FUNCTION ---
+    // (It was here, and it was guessing.)
 
     // Send updates when position or dimensions change
     useEffect(() => {
       sendPositionUpdate();
     }, [item.position, sendPositionUpdate]);
 
+    // --- ADD THIS EFFECT ---
+    // This effect calls fit() whenever the pixel dimensions change
     useEffect(() => {
-      sendSizeUpdate();
-    }, [dimensions, sendSizeUpdate]);
+      // We use a small timeout to ensure the DOM has updated
+      // before we tell xterm.js to fit its container.
+      const timer = setTimeout(() => {
+        xTermRef.current?.fit();
+      }, 50);
+      return () => clearTimeout(timer);
+    }, [dimensions]);
+
 
     useImperativeHandle(ref, () => ({
       write: (data: string) => {
@@ -134,27 +131,20 @@ const sendSizeUpdate = useCallback(() => {
       },
     }));
 
+    // --- SIMPLIFY THIS FUNCTION ---
+    // Remove the sendMessage call and all the guessing logic.
+    // This function's ONLY job is to update the pixel state.
     const handleResize = useCallback((widthDelta: number, heightDelta: number) => {
       setDimensions(prev => {
         const newWidth = Math.min(Math.max(prev.width + widthDelta, MIN_WIDTH), MAX_WIDTH);
         const newHeight = Math.min(Math.max(prev.height + heightDelta, MIN_HEIGHT), MAX_HEIGHT);
-        
-        // Send resize message to backend
-        if (item.terminalId) {
-          sendMessage('resize', JSON.stringify({
-            cols: Math.floor((newWidth - 20) / 9), // Approximate columns based on width
-            rows: Math.floor((newHeight - 100) / 17), // Approximate rows based on height
-            width: newWidth,
-            height: newHeight
-          }), item.terminalId);
-        }
-    
         return {
           width: newWidth,
           height: newHeight
         };
       });
-    }, [item.terminalId, sendMessage]);
+    }, []); // Removed dependencies
+
     const handleMaximize = useCallback(() => {
       if (isMaximized) {
         // Restore to original size and position
@@ -206,10 +196,24 @@ const sendSizeUpdate = useCallback(() => {
       },
       [sendMessage, item.terminalId, item.status]
     );
+    
+    // --- ADD THIS NEW HANDLER ---
+    // This function is called by the <Xterm> component's onResize prop
+    // It sends the *accurate* dimensions to the backend.
+    const handleTerminalResize = useCallback((size: { cols: number; rows: number }) => {
+      if (item.terminalId && item.status === "ready") {
+        sendMessage('resize', JSON.stringify({
+          cols: size.cols,
+          rows: size.rows,
+          width: Math.round(dimensions.width),
+          height: Math.round(dimensions.height)
+        }), item.terminalId);
+      }
+    }, [item.terminalId, item.status, dimensions.width, dimensions.height, sendMessage]);
 
     const handlePointerDown = (e: React.PointerEvent) => {
+      // ... (no changes in this function)
       if (e.button !== 0) return;
-
       const target = e.target as HTMLElement;
       if (
         target.closest(".close-button") ||
@@ -218,14 +222,11 @@ const sendSizeUpdate = useCallback(() => {
       ) {
         return;
       }
-
       setCanvasPanningLocked?.(true);
       e.stopPropagation();
-
       isDraggingRef.current = true;
       initialPointerPosition.current = { x: e.clientX, y: e.clientY };
       initialItemPosition.current = item.position;
-
       if (dragRef.current) {
         dragRef.current.style.cursor = "grabbing";
         dragRef.current.setPointerCapture(e.pointerId);
@@ -233,22 +234,19 @@ const sendSizeUpdate = useCallback(() => {
     };
 
     const handlePointerMove = (e: React.PointerEvent) => {
+      // ... (no changes in this function)
       if (!isDraggingRef.current) return;
-
       const dx = e.clientX - initialPointerPosition.current.x;
       const dy = e.clientY - initialPointerPosition.current.y;
-
       const newX = initialItemPosition.current.x + dx / zoom;
       const newY = initialItemPosition.current.y + dy / zoom;
-
       onPositionChange(item.id, { x: newX, y: newY });
     };
 
     const handlePointerUp = (e: React.PointerEvent) => {
+      // ... (no changes in this function)
       setCanvasPanningLocked?.(false);
-
       if (!isDraggingRef.current) return;
-
       isDraggingRef.current = false;
       if (dragRef.current) {
         dragRef.current.style.cursor = "grab";
@@ -258,6 +256,7 @@ const sendSizeUpdate = useCallback(() => {
 
     const handleClose = useCallback(
       (e: React.MouseEvent) => {
+        // ... (no changes in this function)
         e.stopPropagation();
         onRemove(item.id);
       },
@@ -267,6 +266,7 @@ const sendSizeUpdate = useCallback(() => {
     const renderTerminalContent = () => {
       switch (item.status) {
         case "creating":
+          // ... (no changes in this block)
           return (
             <div className="flex-grow flex items-center justify-center bg-[#1e1e1e] text-gray-400">
               <div className="flex flex-col items-center gap-3">
@@ -277,6 +277,7 @@ const sendSizeUpdate = useCallback(() => {
           );
 
         case "error":
+          // ... (no changes in this block)
           return (
             <div className="flex-grow flex items-center justify-center bg-[#1e1e1e] text-red-400">
               <div className="flex flex-col items-center gap-3">
@@ -302,7 +303,12 @@ const sendSizeUpdate = useCallback(() => {
         case "ready":
           return (
             <div className="flex-grow w-full h-full relative">
-              <Xterm onData={handleTerminalData} ref={xTermRef} />
+              {/* --- ADD THE onResize PROP HERE --- */}
+              <Xterm
+                onData={handleTerminalData}
+                ref={xTermRef}
+                onResize={handleTerminalResize}
+              />
             </div>
           );
 
@@ -312,6 +318,7 @@ const sendSizeUpdate = useCallback(() => {
     };
 
     const getStatusColor = () => {
+      // ... (no changes in this function)
       switch (item.status) {
         case "creating":
           return "bg-yellow-500";
@@ -341,29 +348,28 @@ const sendSizeUpdate = useCallback(() => {
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
       >
+        {/* ... (no changes to the JSX structure below) ... */}
         <div className="flex items-center justify-between px-3 py-2 bg-[#2d2d2d] cursor-grab">
           <div className="flex items-center space-x-2">
             <div className={`w-2 h-2 rounded-full ${getStatusColor()}`} />
             
-            {/* Resize buttons */}
             <div className="flex items-center space-x-1">
               <button
                 onClick={() => handleResize(-10, -10)}
                 className="resize-button p-1 hover:bg-gray-600 rounded text-gray-400 hover:text-white transition-colors"
-    title="Decrease size (-10px)"
-  >
-    <Minus size={12} />
-  </button>
-  <button
-    onClick={() => handleResize(10, 10)}
-    className="resize-button p-1 hover:bg-gray-600 rounded text-gray-400 hover:text-white transition-colors"
-    title="Increase size (+10px)"
-  >
-    <Plus size={12} />
-  </button>
-</div>
+                title="Decrease size (-10px)"
+              >
+                <Minus size={12} />
+              </button>
+              <button
+                onClick={() => handleResize(10, 10)}
+                className="resize-button p-1 hover:bg-gray-600 rounded text-gray-400 hover:text-white transition-colors"
+                title="Increase size (+10px)"
+              >
+                <Plus size={12} />
+              </button>
+            </div>
 
-            {/* Size display */}
             <div className="text-xs text-gray-400 font-mono ml-2">
               {dimensions.width}×{dimensions.height}
             </div>
@@ -390,7 +396,6 @@ const sendSizeUpdate = useCallback(() => {
           </div>
 
           <div className="flex items-center space-x-1">
-            {/* Minimize button */}
             <button
               onClick={handleMinimize}
               className="resize-button p-1 hover:bg-gray-600 rounded text-gray-400 hover:text-white transition-colors"
@@ -399,7 +404,6 @@ const sendSizeUpdate = useCallback(() => {
               <Minus size={14} />
             </button>
 
-            {/* Maximize/Restore button */}
             <button
               onClick={handleMaximize}
               className="resize-button p-1 hover:bg-gray-600 rounded text-gray-400 hover:text-white transition-colors"
@@ -408,7 +412,6 @@ const sendSizeUpdate = useCallback(() => {
               {isMaximized ? <Square size={12} /> : <Maximize2 size={12} />}
             </button>
 
-            {/* Close button */}
             <button
               onClick={handleClose}
               className="close-button p-1 hover:bg-red-600 rounded text-gray-400 hover:text-white transition-colors"

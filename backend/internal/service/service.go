@@ -127,6 +127,8 @@ func (s *ShellSyncService) Stream(stream pb.ShellSync_StreamServer) error {
 						Status:     terminal.Status,
 						X:          terminal.X,
 						Y:          terminal.Y,
+						Width:      terminal.Width,
+						Height:     terminal.Height,
 					}
 				}
 				session.Mu.Unlock()
