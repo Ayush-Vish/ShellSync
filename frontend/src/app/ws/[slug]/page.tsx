@@ -325,6 +325,7 @@ export default function CanvasPage() {
                 onReset={handleResetView}
                 isConnected={isConnected}
                 isCreating={isCreatingTerminal}
+                permission={permission}
             />
 
             <InfiniteCanvas ref={canvasRef}>

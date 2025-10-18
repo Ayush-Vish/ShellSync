@@ -48,14 +48,39 @@ export function useAuthenticatedSocket(
     }));
   }, []);
 
+  // Get or create persistent client ID for this session
+  const getOrCreateClientId = useCallback(() => {
+    const cookieName = `shellsync_client_${sessionId}`;
+    const cookies = document.cookie.split(';');
+    
+    // Try to find existing client ID
+    for (const cookie of cookies) {
+      const [key, value] = cookie.trim().split('=');
+      if (key === cookieName) {
+        return decodeURIComponent(value);
+      }
+    }
+    
+    // Generate new client ID
+    const newClientId = `client-${Math.random().toString(36).substring(2, 9)}`;
+    
+    // Save to cookie (expires in 30 days)
+    const expiryDate = new Date();
+    expiryDate.setDate(expiryDate.getDate() + 30);
+    document.cookie = `${cookieName}=${encodeURIComponent(newClientId)}; expires=${expiryDate.toUTCString()}; path=/; SameSite=Lax`;
+    
+    return newClientId;
+  }, [sessionId]);
+
   const connect = useCallback(() => {
     if (wsRef.current && wsRef.current.readyState !== WebSocket.CLOSED) {
       return;
     }
 
-    // Connect without client_id - server will generate one
-    const wsUrl = `ws://localhost:5000/ws?session_id=${sessionId}`;
-    console.log(`Connecting to WebSocket: ${wsUrl}`);
+    // Get persistent client ID from cookie
+    const clientId = getOrCreateClientId();
+    const wsUrl = `ws://localhost:5000/ws?session_id=${sessionId}&client_id=${clientId}`;
+    console.log(`Connecting to WebSocket: ${wsUrl} with client ID: ${clientId}`);
 
     try {
       const ws = new WebSocket(wsUrl);

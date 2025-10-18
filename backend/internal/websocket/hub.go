@@ -236,8 +236,16 @@ func (h *Hub) authenticateAndReadLoop(conn *websocket.Conn, sessionID, clientID 
 	// Update client permission and name in session
 	session.Mu.Lock()
 	if client, exists := session.Clients[clientID]; exists {
+		// Preserve existing name if client is reconnecting and didn't provide a new name
+		if clientName != "" && clientName != "Anonymous" {
+			client.Name = clientName
+		} else if client.Name == "" {
+			client.Name = "Anonymous"
+		}
+		// Update permission (may have changed based on hostname match)
 		client.Permission = permission
-		client.Name = clientName
+		client.LastSeen = time.Now()
+		log.Printf("Client %s reconnected with name: %s, permission: %s", clientID, client.Name, client.Permission)
 	}
 	session.Mu.Unlock()
 
