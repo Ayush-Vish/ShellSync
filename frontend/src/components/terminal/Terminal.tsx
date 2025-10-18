@@ -4,7 +4,9 @@ import { useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
 import { Terminal as XTerminal } from 'xterm';
 import { FitAddon } from 'xterm-addon-fit';
 import 'xterm/css/xterm.css';
-
+import { ClipboardAddon } from '@xterm/addon-clipboard';
+import { SearchAddon, ISearchOptions } from '@xterm/addon-search';
+import { WebLinksAddon } from '@xterm/addon-web-links';
 interface XtermProps {
   onData: (data: string) => void;
   onResize?: (size: { cols: number; rows: number }) => void;
@@ -55,7 +57,14 @@ const Xterm = forwardRef<XtermRef, XtermProps>(
       termRef.current = term;
 
       const fitAddon = new FitAddon();
+      const clipboardAddon = new ClipboardAddon();
+      const searchAddon = new SearchAddon();
+      const webLinksAddon = new WebLinksAddon();
       fitAddonRef.current = fitAddon;
+
+      term.loadAddon(clipboardAddon);
+      term.loadAddon(searchAddon);
+      term.loadAddon(webLinksAddon);
       term.loadAddon(fitAddon);
 
       term.open(terminalRef.current);

@@ -233,7 +233,7 @@ export default function CanvasPage() {
             frontendId, 
             x: newItem.position.x, 
             y: newItem.position.y,
-            width: newItem.width, // Send initial dimensions
+            width: newItem.width, 
             height: newItem.height,
         };
         sendMessage('create_terminal', JSON.stringify(payload));
