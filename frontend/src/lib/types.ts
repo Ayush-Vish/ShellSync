@@ -1,25 +1,31 @@
 export interface CanvasItem {
   id: string;
+  type: 'terminal';
   position: { x: number; y: number };
-  color: string;
+  status: 'creating' | 'ready' | 'error';
   terminalId?: string;
-  status: "creating" | "ready" | "error";
   error?: string;
+  width?: number;
+  height?: number;
+  color?: string;
 }
 
 export interface SocketMessage {
-    type: 'terminal_created' | 'pty_output' | 'pty_input' | 'create_terminal' | 'terminal_error' | 'session_state' | 'subscribe';
-    content?: string;
-    terminalId?: string;
-    frontendId?: string;
-    error?: string;
-    sender?: string;
-    terminals?: { terminalId: string; frontendId: string; status: string; x: number; y: number }[];
-    chunkNum?: number;
-    x?: number;
-    y?: number;
+  type: string;
+  content?: string;
+  sender?: string;
+  terminalId?: string;
+  frontendId?: string;
+  status?: string;
+  error?: string;
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  terminals?: any[];
+  cols?: number;
+  rows?: number;
 }
-
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function normalizeMessage(data: any): SocketMessage {
     return {
@@ -30,7 +36,8 @@ export function normalizeMessage(data: any): SocketMessage {
         error: data.error,
         sender: data.sender,
         terminals: data.terminals,
-        chunkNum: data.chunkNum,
+        cols: data.cols,
+        rows: data.rows,
     };
 }
 export interface DraggableTerminalRef {

@@ -89,6 +89,7 @@ func (s *ShellSyncService) Stream(stream pb.ShellSync_StreamServer) error {
 			}
 
 			switch payload := msgFromAgent.Payload.(type) {
+
 			case *pb.ClientUpdate_PtyOutput:
 				output := payload.PtyOutput
 				terminalID := output.GetTerminalId()
@@ -126,6 +127,8 @@ func (s *ShellSyncService) Stream(stream pb.ShellSync_StreamServer) error {
 						Status:     terminal.Status,
 						X:          terminal.X,
 						Y:          terminal.Y,
+						Width:      terminal.Width,
+						Height:     terminal.Height,
 					}
 				}
 				session.Mu.Unlock()
@@ -152,6 +155,7 @@ func (s *ShellSyncService) Stream(stream pb.ShellSync_StreamServer) error {
 					}
 					s.hub.BroadcastToSession(sessionID, errorMsg)
 				}
+
 			}
 		}
 	}()
@@ -177,6 +181,18 @@ func (s *ShellSyncService) Stream(stream pb.ShellSync_StreamServer) error {
 					Payload: &pb.ServerUpdate_CreateTerminalRequest{
 						CreateTerminalRequest: &pb.CreateTerminalRequest{
 							TerminalId: cmd.TerminalID,
+						},
+					},
+				}
+			case types.ResizeTerminalCmd:
+				serverUpdate = &pb.ServerUpdate{
+					Payload: &pb.ServerUpdate_ResizeTerminal{
+						ResizeTerminal: &pb.TerminalResize{
+							TerminalId: cmd.TerminalID,
+							Cols:       cmd.Cols,
+							Rows:       cmd.Rows,
+							Width:      cmd.Width,
+							Height:     cmd.Height,
 						},
 					},
 				}
@@ -236,9 +252,27 @@ func (s *ShellSyncService) RequestNewTerminal(sessionID, frontendID string, x fl
 		Status:     "creating",
 		X:          float32(x),
 		Y:          float32(y),
+		Width:      640, // Default width
+		Height:     400, // Default height
 		Data:       make([]types.Message, 0, 2000),
 	}
 	session.Mu.Unlock()
+
+	// Immediately broadcast that a terminal is being created
+	if s.hub != nil {
+		creatingMsg := types.Message{
+			Type:       "terminal_created",
+			TerminalID: backendTerminalID,
+			FrontendID: frontendID,
+			Status:     "creating",
+			X:          x,
+			Y:          y,
+			Width:      640,
+			Height:     400,
+		}
+		s.hub.BroadcastToSession(sessionID, creatingMsg)
+	}
+
 	log.Printf("Requesting agent to create terminal with ID %s for session %s", backendTerminalID, sessionID)
 
 	select {

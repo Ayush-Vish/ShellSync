@@ -6,57 +6,83 @@ import { FitAddon } from 'xterm-addon-fit';
 import 'xterm/css/xterm.css';
 
 interface XtermProps {
-  onData: (data: string) => void; 
+  onData: (data: string) => void;
+  onResize?: (size: { cols: number; rows: number }) => void;
 }
-
 
 export interface XtermRef {
   write: (data: string) => void;
   focus: () => void;
+  fit: () => void;
+  getCols: () => number;
+  getRows: () => number;
 }
 
-const Xterm = forwardRef<XtermRef, XtermProps>(({ onData }, ref) => {
-  const terminalRef = useRef<HTMLDivElement>(null);
-  const termRef = useRef<XTerminal | null>(null);
+const Xterm = forwardRef<XtermRef, XtermProps>(
+  ({ onData, onResize }, ref) => {
+    const terminalRef = useRef<HTMLDivElement>(null);
+    const termRef = useRef<XTerminal | null>(null);
+    const fitAddonRef = useRef<FitAddon | null>(null);
 
-  
-  useImperativeHandle(ref, () => ({
-    write: (data: string) => {
-      termRef.current?.write(data);
-    },
-    focus: () => {
-      termRef.current?.focus();
-    },
-  }));
+    useImperativeHandle(ref, () => ({
+      write: (data: string) => {
+        termRef.current?.write(data);
+      },
+      focus: () => {
+        termRef.current?.focus();
+      },
+      fit: () => {
+        if (fitAddonRef.current) {
+          fitAddonRef.current.fit();
+        }
+      },
+      getCols: () => {
+        return termRef.current?.cols || 80;
+      },
+      getRows: () => {
+        return termRef.current?.rows || 24;
+      },
+    }), []);
 
-  useEffect(() => {
-    if (!terminalRef.current) return;
+    useEffect(() => {
+      if (!terminalRef.current) return;
 
-    const term = new XTerminal({
-      cursorBlink: true,
+      const term = new XTerminal({
+        cursorBlink: true,
+        fontSize: 14,
+        fontFamily: 'monospace',
+      });
+      termRef.current = term;
 
-    });
-    termRef.current = term;
+      const fitAddon = new FitAddon();
+      fitAddonRef.current = fitAddon;
+      term.loadAddon(fitAddon);
 
-    const fitAddon = new FitAddon();
-    term.loadAddon(fitAddon);
+      term.open(terminalRef.current);
+      fitAddon.fit();
+      term.focus();
 
-    term.open(terminalRef.current);
-    fitAddon.fit();
-    term.focus();
-    term.onData(onData);
+      term.onData(onData);
 
-    const handleResize = () => fitAddon.fit();
-    window.addEventListener('resize', handleResize);
+      term.onResize((size) => {
+        onResize?.(size);
+      });
 
-    return () => {
-      window.removeEventListener('resize', handleResize);
-      term.dispose();
-    };
-  }, [onData]);
+      const handleResize = () => {
+        fitAddon.fit();
+      };
 
-  return <div ref={terminalRef} className="h-full w-full" />;
-});
+      window.addEventListener('resize', handleResize);
+
+      return () => {
+        window.removeEventListener('resize', handleResize);
+        term.dispose();
+      };
+    }, [onData, onResize]);
+
+    return <div ref={terminalRef} className="h-full w-full" />;
+  }
+);
 
 Xterm.displayName = 'Xterm';
 
