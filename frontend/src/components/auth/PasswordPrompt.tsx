@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Lock, AlertCircle } from 'lucide-react';
 
 interface PasswordPromptProps {
@@ -13,34 +13,83 @@ export default function PasswordPrompt({ onSubmit, error, sessionId }: PasswordP
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isAutoJoining, setIsAutoJoining] = useState(true);
 
-  // Load name from session-specific cookie on mount
-  React.useEffect(() => {
-    const cookieName = `shellsync_name_${sessionId}`;
+  // Load credentials from session-specific cookies and auto-join
+  useEffect(() => {
+    const nameCookieName = `shellsync_name_${sessionId}`;
+    const passwordCookieName = `shellsync_password_${sessionId}`;
+    
     const cookies = document.cookie.split(';');
+    let savedName = '';
+    let savedPassword = '';
+    
     for (const cookie of cookies) {
       const [key, value] = cookie.trim().split('=');
-      if (key === cookieName) {
-        setName(decodeURIComponent(value));
-        break;
+      if (key === nameCookieName) {
+        savedName = decodeURIComponent(value);
+      } else if (key === passwordCookieName) {
+        savedPassword = decodeURIComponent(value);
       }
     }
-  }, [sessionId]);
+    
+    // If both credentials are found, auto-join
+    if (savedName && savedPassword) {
+      setName(savedName);
+      setPassword(savedPassword);
+      setIsAutoJoining(true);
+      // Auto-submit after a brief delay to allow state to settle
+      setTimeout(() => {
+        onSubmit(savedPassword, savedName);
+      }, 100);
+    } else {
+      // Only set the name if found, let user enter password
+      if (savedName) {
+        setName(savedName);
+      }
+      setIsAutoJoining(false);
+    }
+  }, [sessionId, onSubmit]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (password.trim() && name.trim()) {
       setIsSubmitting(true);
       
-      // Save name to session-specific cookie (expires in 30 days)
-      const cookieName = `shellsync_name_${sessionId}`;
+      const nameCookieName = `shellsync_name_${sessionId}`;
+      const passwordCookieName = `shellsync_password_${sessionId}`;
       const expiryDate = new Date();
-      expiryDate.setDate(expiryDate.getDate() + 30);
-      document.cookie = `${cookieName}=${encodeURIComponent(name.trim())}; expires=${expiryDate.toUTCString()}; path=/; SameSite=Lax`;
+      expiryDate.setDate(expiryDate.getDate() + 30); // 30 days expiry
+      
+      // Save name to cookie
+      document.cookie = `${nameCookieName}=${encodeURIComponent(name.trim())}; expires=${expiryDate.toUTCString()}; path=/; SameSite=Lax`;
+      
+      // Save password to cookie
+      document.cookie = `${passwordCookieName}=${encodeURIComponent(password.trim())}; expires=${expiryDate.toUTCString()}; path=/; SameSite=Lax`;
       
       onSubmit(password.trim(), name.trim());
     }
   };
+
+  // Show loading state during auto-join
+  if (isAutoJoining) {
+    return (
+      <div className="fixed inset-0 bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center p-4">
+        <div className="bg-gray-800 rounded-2xl shadow-2xl border border-gray-700 p-8 w-full max-w-md">
+          <div className="flex flex-col items-center">
+            <div className="bg-blue-500/10 p-4 rounded-full mb-4">
+              <Lock className="w-8 h-8 text-blue-400 animate-pulse" />
+            </div>
+            <h1 className="text-2xl font-bold text-white mb-2">Reconnecting...</h1>
+            <p className="text-gray-400 text-center text-sm mb-4">
+              Joining session automatically
+            </p>
+            <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center p-4">
@@ -71,7 +120,7 @@ export default function PasswordPrompt({ onSubmit, error, sessionId }: PasswordP
               placeholder="Enter your name"
               maxLength={30}
               className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              autoFocus
+              autoFocus={!name}
               disabled={isSubmitting}
             />
           </div>
@@ -88,6 +137,7 @@ export default function PasswordPrompt({ onSubmit, error, sessionId }: PasswordP
               placeholder="Enter 6-digit password"
               maxLength={6}
               className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-center text-2xl tracking-widest font-mono"
+              autoFocus={!!name}
               disabled={isSubmitting}
             />
           </div>
@@ -121,6 +171,9 @@ export default function PasswordPrompt({ onSubmit, error, sessionId }: PasswordP
         <div className="mt-6 pt-6 border-t border-gray-700">
           <p className="text-xs text-gray-500 text-center">
             Don't have the password? Contact the session host.
+          </p>
+          <p className="text-xs text-gray-600 text-center mt-2">
+            Your credentials will be saved for 30 days for this session.
           </p>
         </div>
       </div>

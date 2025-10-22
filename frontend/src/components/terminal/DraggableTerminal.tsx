@@ -7,7 +7,7 @@ import React, {
   useEffect,
 } from "react";
 import Xterm, { XtermRef } from "@/components/terminal/Terminal";
-import { Loader2, AlertCircle, X, Minus, Maximize2, Square, Plus } from "lucide-react";
+import { Loader2, AlertCircle, X, Minus, Maximize2 } from "lucide-react";
 import { CanvasItem, SocketMessage } from "@/lib/types";
 
 // Minimum and maximum dimensions for the terminal
@@ -66,9 +66,7 @@ const DraggableTerminal = forwardRef<
       height: item.height || DEFAULT_HEIGHT,
     });
     
-    
-    const dimensionsRef = useRef(dimensions)
-
+    const dimensionsRef = useRef(dimensions);
 
     const [isMaximized, setIsMaximized] = useState(false);
     const [originalState, setOriginalState] = useState({
@@ -90,7 +88,6 @@ const DraggableTerminal = forwardRef<
     // Fit terminal when dimensions change
     useEffect(() => {
       if (xTermRef.current && item.status === 'ready') {
-        // Small delay to ensure DOM has updated
         const timer = setTimeout(() => {
           xTermRef.current?.fit();
         }, 50);
@@ -119,32 +116,23 @@ const DraggableTerminal = forwardRef<
           height: dimensions.height
         }), item.terminalId);
       }
-    }, [item.position, item.terminalId, sendMessage]);
+    }, [item.position, item.terminalId, sendMessage, dimensions.width, dimensions.height]);
 
-    // --- REMOVE THE OLD sendSizeUpdate FUNCTION ---
-    // (It was here, and it was guessing.)
-
-    // Send updates when position or dimensions change
     useEffect(() => {
       sendPositionUpdate();
     }, [item.position, sendPositionUpdate]);
 
-    // --- ADD THIS EFFECT ---
-    // This effect calls fit() whenever the pixel dimensions change
     useEffect(() => {
-      // We use a small timeout to ensure the DOM has updated
-      // before we tell xterm.js to fit its container.
       const timer = setTimeout(() => {
         xTermRef.current?.fit();
       }, 50);
       return () => clearTimeout(timer);
     }, [dimensions]);
 
-    // Keep the ref updated with the latest dimensions state
-    // This does not cause functions that read the ref to be re-created
     useEffect(() => {
       dimensionsRef.current = dimensions;
     }, [dimensions]);
+
     useImperativeHandle(ref, () => ({
       write: (data: string) => {
         if (item.status === "ready") {
@@ -153,26 +141,8 @@ const DraggableTerminal = forwardRef<
       },
     }));
 
-    // Update dimensions and broadcast to other clients
-    const handleResize = useCallback((widthDelta: number, heightDelta: number) => {
-      setDimensions(prev => {
-        const newWidth = Math.min(Math.max(prev.width + widthDelta, MIN_WIDTH), MAX_WIDTH);
-        const newHeight = Math.min(Math.max(prev.height + heightDelta, MIN_HEIGHT), MAX_HEIGHT);
-        const newDimensions = {
-          width: newWidth,
-          height: newHeight
-        };
-        
-        // Broadcast dimension change to other clients
-        onDimensionChange?.(item.id, newDimensions);
-        
-        return newDimensions;
-      });
-    }, [item.id, onDimensionChange]);
-
     const handleMaximize = useCallback(() => {
       if (isMaximized) {
-        // Restore to original size and position
         const newDimensions = {
           width: originalState.width,
           height: originalState.height
@@ -181,14 +151,12 @@ const DraggableTerminal = forwardRef<
         onPositionChange(item.id, originalState.position);
         onDimensionChange?.(item.id, newDimensions);
       } else {
-        // Save current state and maximize
         setOriginalState({
           width: dimensions.width,
           height: dimensions.height,
           position: { ...item.position }
         });
         
-        // Maximize to 90% of window size
         const maxWidth = Math.min(window.innerWidth * 0.9, MAX_WIDTH);
         const maxHeight = Math.min(window.innerHeight * 0.9, MAX_HEIGHT);
         
@@ -199,23 +167,23 @@ const DraggableTerminal = forwardRef<
         setDimensions(newDimensions);
         onDimensionChange?.(item.id, newDimensions);
         
-        // Center on screen
         const centerX = (window.innerWidth - maxWidth) / 2;
         const centerY = (window.innerHeight - maxHeight) / 2;
         onPositionChange(item.id, { x: centerX, y: centerY });
       }
       
       setIsMaximized(!isMaximized);
-    }, [isMaximized, originalState, dimensions, item.position, item.id, onPositionChange]);
+    }, [isMaximized, originalState, dimensions, item.position, item.id, onPositionChange, onDimensionChange]);
 
     const handleMinimize = useCallback(() => {
-      // Minimize to minimum size
-      setDimensions({
+      const newDimensions = {
         width: MIN_WIDTH,
         height: MIN_HEIGHT
-      });
+      };
+      setDimensions(newDimensions);
+      onDimensionChange?.(item.id, newDimensions);
       setIsMaximized(false);
-    }, []);
+    }, [item.id, onDimensionChange]);
 
     const handleTerminalData = useCallback(
       (data: string) => {
@@ -226,11 +194,9 @@ const DraggableTerminal = forwardRef<
       [sendMessage, item.terminalId, item.status]
     );
     
-    // This function is called by the <Xterm> component's onResize prop
-    // It sends the *accurate* dimensions to the backend.
     const handleTerminalResize = useCallback((size: { cols: number; rows: number }) => {
       if (item.terminalId && item.status === "ready") {
-        const currentDimensions = dimensionsRef.current
+        const currentDimensions = dimensionsRef.current;
         sendMessage('resize', JSON.stringify({
           cols: size.cols,
           rows: size.rows,
@@ -241,13 +207,11 @@ const DraggableTerminal = forwardRef<
     }, [item.terminalId, item.status, sendMessage]);
 
     const handlePointerDown = (e: React.PointerEvent) => {
-      // ... (no changes in this function)
       if (e.button !== 0) return;
       const target = e.target as HTMLElement;
       if (
-        target.closest(".close-button") ||
-        target.closest(".xterm-viewport") ||
-        target.closest(".resize-button")
+        target.closest(".window-button") ||
+        target.closest(".xterm-viewport")
       ) {
         return;
       }
@@ -263,7 +227,6 @@ const DraggableTerminal = forwardRef<
     };
 
     const handlePointerMove = (e: React.PointerEvent) => {
-      // ... (no changes in this function)
       if (!isDraggingRef.current) return;
       const dx = e.clientX - initialPointerPosition.current.x;
       const dy = e.clientY - initialPointerPosition.current.y;
@@ -273,7 +236,6 @@ const DraggableTerminal = forwardRef<
     };
 
     const handlePointerUp = (e: React.PointerEvent) => {
-      // ... (no changes in this function)
       setCanvasPanningLocked?.(false);
       if (!isDraggingRef.current) return;
       isDraggingRef.current = false;
@@ -285,7 +247,6 @@ const DraggableTerminal = forwardRef<
 
     const handleClose = useCallback(
       (e: React.MouseEvent) => {
-        // ... (no changes in this function)
         e.stopPropagation();
         onRemove(item.id);
       },
@@ -295,9 +256,8 @@ const DraggableTerminal = forwardRef<
     const renderTerminalContent = () => {
       switch (item.status) {
         case "creating":
-          // ... (no changes in this block)
           return (
-            <div className="flex-grow flex items-center justify-center bg-[#1e1e1e] text-gray-400">
+            <div className="flex-grow flex items-center justify-center bg-[#1a1b26] text-gray-400">
               <div className="flex flex-col items-center gap-3">
                 <Loader2 size={32} className="animate-spin" />
                 <div className="text-sm">Creating terminal...</div>
@@ -306,9 +266,8 @@ const DraggableTerminal = forwardRef<
           );
 
         case "error":
-          // ... (no changes in this block)
           return (
-            <div className="flex-grow flex items-center justify-center bg-[#1e1e1e] text-red-400">
+            <div className="flex-grow flex items-center justify-center bg-[#1a1b26] text-red-400">
               <div className="flex flex-col items-center gap-3">
                 <AlertCircle size={32} />
                 <div className="text-sm text-center">
@@ -332,7 +291,6 @@ const DraggableTerminal = forwardRef<
         case "ready":
           return (
             <div className="flex-grow w-full h-full relative">
-              {/* --- ADD THE onResize PROP HERE --- */}
               <Xterm
                 onData={handleTerminalData}
                 ref={xTermRef}
@@ -346,24 +304,10 @@ const DraggableTerminal = forwardRef<
       }
     };
 
-    const getStatusColor = () => {
-      // ... (no changes in this function)
-      switch (item.status) {
-        case "creating":
-          return "bg-yellow-500";
-        case "error":
-          return "bg-red-500";
-        case "ready":
-          return "bg-green-500";
-        default:
-          return "bg-gray-500";
-      }
-    };
-
     return (
       <div
         ref={dragRef}
-        className="absolute flex flex-col rounded-lg shadow-xl select-none overflow-hidden border border-gray-700 bg-[#1e1e1e]"
+        className="absolute flex flex-col rounded-lg shadow-xl select-none overflow-hidden border border-gray-700/50 bg-[#1a1b26]"
         style={{
           left: `${item.position.x}px`,
           top: `${item.position.y}px`,
@@ -377,77 +321,53 @@ const DraggableTerminal = forwardRef<
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
       >
-        {/* ... (no changes to the JSX structure below) ... */}
-        <div className="flex items-center justify-between px-3 py-2 bg-[#2d2d2d] cursor-grab">
+        {/* macOS-style header */}
+        <div className="flex items-center justify-between px-4 py-2.5 bg-[#24283b] cursor-grab border-b border-gray-700/30">
+          {/* Left: macOS window controls */}
           <div className="flex items-center space-x-2">
-            <div className={`w-2 h-2 rounded-full ${getStatusColor()}`} />
-            
-            <div className="flex items-center space-x-1">
-              <button
-                onClick={() => handleResize(-10, -10)}
-                className="resize-button p-1 hover:bg-gray-600 rounded text-gray-400 hover:text-white transition-colors"
-                title="Decrease size (-10px)"
-              >
-                <Minus size={12} />
-              </button>
-              <button
-                onClick={() => handleResize(10, 10)}
-                className="resize-button p-1 hover:bg-gray-600 rounded text-gray-400 hover:text-white transition-colors"
-                title="Increase size (+10px)"
-              >
-                <Plus size={12} />
-              </button>
-            </div>
-
-            <div className="text-xs text-gray-400 font-mono ml-2">
-              {dimensions.width}×{dimensions.height}
-            </div>
+            <button
+              onClick={handleClose}
+              className="window-button w-3 h-3 rounded-full bg-[#ff5f57] hover:bg-[#ff4136] transition-colors flex items-center justify-center group"
+              title="Close"
+            >
+              <X size={8} className="opacity-0 group-hover:opacity-100 text-[#4a0000] transition-opacity" strokeWidth={3} />
+            </button>
+            <button
+              onClick={handleMinimize}
+              className="window-button w-3 h-3 rounded-full bg-[#ffbd2e] hover:bg-[#ff9500] transition-colors flex items-center justify-center group"
+              title="Minimize"
+            >
+              <Minus size={8} className="opacity-0 group-hover:opacity-100 text-[#4a3000] transition-opacity" strokeWidth={3} />
+            </button>
+            <button
+              onClick={handleMaximize}
+              className="window-button w-3 h-3 rounded-full bg-[#28c840] hover:bg-[#00d100] transition-colors flex items-center justify-center group"
+              title={isMaximized ? "Restore" : "Maximize"}
+            >
+              <Maximize2 size={7} className="opacity-0 group-hover:opacity-100 text-[#003a00] transition-opacity" strokeWidth={3} />
+            </button>
           </div>
 
-          <div className="flex-grow text-center text-gray-400 text-xs font-sans">
+          {/* Center: Terminal info */}
+          <div className="flex-grow text-center text-gray-400 text-xs font-medium">
             {item.status === "ready" && item.terminalId ? (
               <span title={`Terminal ID: ${item.terminalId}`}>
-                Terminal: {item.terminalId.substring(0, 8)}...
+                {item.terminalId.substring(0, 8)}...
               </span>
             ) : (
-              <span title={`Item ID: ${item.id}`}>
+              <span>
                 {item.status === "creating"
                   ? "Creating..."
                   : item.status === "error"
                   ? "Error"
-                  : `ID: ${
-                      typeof item.id === "string"
-                        ? item.id.substring(5, 13)
-                        : ""
-                    }...`}
+                  : "Terminal"}
               </span>
             )}
           </div>
 
-          <div className="flex items-center space-x-1">
-            <button
-              onClick={handleMinimize}
-              className="resize-button p-1 hover:bg-gray-600 rounded text-gray-400 hover:text-white transition-colors"
-              title="Minimize to minimum size"
-            >
-              <Minus size={14} />
-            </button>
-
-            <button
-              onClick={handleMaximize}
-              className="resize-button p-1 hover:bg-gray-600 rounded text-gray-400 hover:text-white transition-colors"
-              title={isMaximized ? "Restore to original size" : "Maximize"}
-            >
-              {isMaximized ? <Square size={12} /> : <Maximize2 size={12} />}
-            </button>
-
-            <button
-              onClick={handleClose}
-              className="close-button p-1 hover:bg-red-600 rounded text-gray-400 hover:text-white transition-colors"
-              title="Close terminal"
-            >
-              <X size={14} />
-            </button>
+          {/* Right: Dimensions display */}
+          <div className="text-xs text-gray-500 font-mono">
+            {dimensions.width}×{dimensions.height}
           </div>
         </div>
 

@@ -246,7 +246,6 @@ func startStream(client pb.ShellSyncClient, sessionID string) error {
 				log.Printf("Agent: Failed to spawn new terminal: %v", err)
 			}
 
-		// NEW: Handle terminal resize
 		case *pb.ServerUpdate_ResizeTerminal:
 			resize := payload.ResizeTerminal
 			log.Printf("Agent: Received resize request for terminal %s: %dx%d",
@@ -255,7 +254,6 @@ func startStream(client pb.ShellSyncClient, sessionID string) error {
 			if err := agent.resizePty(resize.GetTerminalId(), resize.GetCols(), resize.GetRows()); err != nil {
 				log.Printf("Agent: Failed to resize terminal %s: %v", resize.GetTerminalId(), err)
 
-				// Send error back to server
 				errorMsg := &pb.ClientUpdate{
 					Payload: &pb.ClientUpdate_TerminalError{
 						TerminalError: &pb.TerminalError{
