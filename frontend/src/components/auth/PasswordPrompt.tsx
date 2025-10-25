@@ -59,7 +59,7 @@ export default function PasswordPrompt({ onSubmit, error, sessionId }: PasswordP
       const nameCookieName = `shellsync_name_${sessionId}`;
       const passwordCookieName = `shellsync_password_${sessionId}`;
       const expiryDate = new Date();
-      expiryDate.setDate(expiryDate.getDate() + 30); // 30 days expiry
+      expiryDate.setDate(expiryDate.getHours() + 1);
       
       // Save name to cookie
       document.cookie = `${nameCookieName}=${encodeURIComponent(name.trim())}; expires=${expiryDate.toUTCString()}; path=/; SameSite=Lax`;

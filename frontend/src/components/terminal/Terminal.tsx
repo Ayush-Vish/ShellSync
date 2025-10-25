@@ -48,11 +48,15 @@ const Xterm = forwardRef<XtermRef, XtermProps>(
 
     useEffect(() => {
       if (!terminalRef.current) return;
-
       const term = new XTerminal({
-        cursorBlink: true,
+          allowTransparency: false,
+        cursorBlink: false,
+        cursorStyle: "block",
+        fontFamily:
+          '"Fira Code VF", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
         fontSize: 14,
-        fontFamily: 'monospace',
+        fontWeight: 400,
+        fontWeightBold: 500,
       });
       termRef.current = term;
 

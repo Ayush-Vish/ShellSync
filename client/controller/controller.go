@@ -56,18 +56,6 @@ func getDefaultShell(ctx context.Context) *exec.Cmd {
 	return exec.CommandContext(ctx, shell, args...)
 }
 
-func (agent *Agent) getSize() int64 {
-	var size int64
-	agent.mu.RLock()
-	for _, ptmx := range agent.ptys {
-		if stat, err := ptmx.Stat(); err == nil {
-			size += stat.Size()
-		}
-	}
-	agent.mu.RUnlock()
-	return size
-}
-
 func (a *Agent) resizePty(terminalID string, cols uint32, rows uint32) error {
 	a.mu.RLock()
 	localID, found := a.terminalMap[terminalID]

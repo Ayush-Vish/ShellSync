@@ -4,19 +4,22 @@ import (
 	"context"
 	"encoding/json"
 	"log"
-	"net"
 	"net/http"
 	"os"
 	"os/signal"
+	"strings" // Added import
 	"syscall"
 	"time"
-
-	"github.com/gorilla/mux"
-	"google.golang.org/grpc"
 
 	pb "github.com/Ayush-Vish/shellsync/api/proto"
 	"github.com/Ayush-Vish/shellsync/backend/internal/service"
 	"github.com/Ayush-Vish/shellsync/backend/internal/websocket"
+	"github.com/gorilla/mux"
+	"github.com/improbable-eng/grpc-web/go/grpcweb"
+	"google.golang.org/grpc"
+
+	"golang.org/x/net/http2"
+	"golang.org/x/net/http2/h2c"
 )
 
 func main() {
@@ -25,44 +28,57 @@ func main() {
 	wsHub := websocket.NewHub(shellService)
 	shellService.SetHub(wsHub)
 
-	// gRPC server on :5001
-	go func() {
-		grpcLis, err := net.Listen("tcp", ":5001")
-		if err != nil {
-			log.Fatalf("Failed to listen on :5001: %v", err)
-		}
-		grpcServer := grpc.NewServer()
-		pb.RegisterShellSyncServer(grpcServer, shellService)
+	// Set up gRPC server
+	grpcServer := grpc.NewServer()
+	pb.RegisterShellSyncServer(grpcServer, shellService)
 
-		log.Println("Starting gRPC server on port :5001")
-		if err := grpcServer.Serve(grpcLis); err != nil {
-			log.Fatalf("gRPC server failed: %v", err)
-		}
-	}()
+	// Set up HTTP/WebSocket router
+	httpRouter := mux.NewRouter()
 
-	// HTTP server on :5000
-	r := mux.NewRouter()
-	r.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+	// Health check
+	httpRouter.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("ShellSync Backend is Running!"))
 	})
-	r.HandleFunc("/s", func(w http.ResponseWriter, r *http.Request) {
+
+	// Sessions endpoint
+	httpRouter.HandleFunc("/s", func(w http.ResponseWriter, r *http.Request) {
 		sessions := shellService.GetSessions()
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(sessions); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
 	})
-	r.HandleFunc("/ws", wsHub.HandleWebSocket)
 
-	httpServer := &http.Server{
-		Addr:    ":5000",
-		Handler: r,
+	// WebSocket endpoint
+	httpRouter.HandleFunc("/ws", wsHub.HandleWebSocket)
+
+	grpcWebServer := grpcweb.WrapServer(grpcServer,
+		grpcweb.WithOriginFunc(func(origin string) bool { return true }),
+	)
+
+	httpRouter.PathPrefix("/grpc/").Handler(grpcWebServer)
+
+	mainHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.ProtoMajor == 2 && strings.HasPrefix(r.Header.Get("Content-Type"), "application/grpc") {
+			grpcServer.ServeHTTP(w, r)
+		} else {
+			httpRouter.ServeHTTP(w, r)
+		}
+	})
+
+	h2cHandler := h2c.NewHandler(mainHandler, &http2.Server{})
+
+	const serverAddr = "[::]:8100"
+
+	server := &http.Server{
+		Addr:    serverAddr,
+		Handler: h2cHandler,
 	}
 
 	go func() {
-		log.Println("Starting HTTP server on port :5000")
-		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("HTTP server failed: %v", err)
+		log.Println("Starting Unified HTTP, WebSocket, and gRPC server on", serverAddr)
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("Server failed: %v", err)
 		}
 	}()
 
@@ -71,12 +87,11 @@ func main() {
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 	<-sigs
 
-	log.Println("Shutting down HTTP server...")
+	log.Println("Shutting down server...")
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-
-	if err := httpServer.Shutdown(ctx); err != nil {
-		log.Printf("HTTP server shutdown error: %v", err)
+	if err := server.Shutdown(ctx); err != nil {
+		log.Printf("Server shutdown error: %v", err)
 	}
 	log.Println("Shutdown complete.")
 }
