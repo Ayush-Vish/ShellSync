@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strings" // Added import
+	"strings"
 	"syscall"
 	"time"
 
@@ -23,16 +23,19 @@ import (
 )
 
 func main() {
-	// Initialize ShellSync service and WebSocket hub
 	shellService := service.NewShellSyncService()
 	wsHub := websocket.NewHub(shellService)
 	shellService.SetHub(wsHub)
 
-	// Set up gRPC server
 	grpcServer := grpc.NewServer()
 	pb.RegisterShellSyncServer(grpcServer, shellService)
 
-	// Set up HTTP/WebSocket router
+	// gRPC-Web wrapper 
+	grpcWebServer := grpcweb.WrapServer(grpcServer,
+		grpcweb.WithOriginFunc(func(origin string) bool { return true }),
+	)
+
+	// httpRouter 
 	httpRouter := mux.NewRouter()
 
 	// Health check
@@ -52,23 +55,30 @@ func main() {
 	// WebSocket endpoint
 	httpRouter.HandleFunc("/ws", wsHub.HandleWebSocket)
 
-	grpcWebServer := grpcweb.WrapServer(grpcServer,
-		grpcweb.WithOriginFunc(func(origin string) bool { return true }),
-	)
-
-	httpRouter.PathPrefix("/grpc/").Handler(grpcWebServer)
-
+	// Main multiplexer for gRPC, gRPC-Web, HTTP, and WebSockets
 	mainHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
+		// Check for gRPC-Web requests (HTTP/1.1)
+		if  grpcWebServer.IsGrpcWebRequest(r) {
+			grpcWebServer.ServeHTTP(w, r)
+			return
+		}
+
+		// Check for native gRPC requests (HTTP/2)
 		if r.ProtoMajor == 2 && strings.HasPrefix(r.Header.Get("Content-Type"), "application/grpc") {
 			grpcServer.ServeHTTP(w, r)
-		} else {
-			httpRouter.ServeHTTP(w, r)
+			return
 		}
+
+		// Fallback to httpRouter for REST and WebSockets
+		httpRouter.ServeHTTP(w, r)
 	})
 
+	// Wrap the main multiplexer in h2c
+	// this is because gRPC requires HTTP/2, but we also want to support HTTP/1.1 for REST and WebSockets
 	h2cHandler := h2c.NewHandler(mainHandler, &http2.Server{})
 
-	const serverAddr = "[::]:8100"
+	const serverAddr = "0.0.0.0:8100"
 
 	server := &http.Server{
 		Addr:    serverAddr,

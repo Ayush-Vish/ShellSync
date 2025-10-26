@@ -79,7 +79,7 @@ export function useAuthenticatedSocket(
 
     // Get persistent client ID from cookie
     const clientId = getOrCreateClientId();
-    const wsUrl = `ws://localhost:5000/ws?session_id=${sessionId}&client_id=${clientId}`;
+    const wsUrl = `ws://localhost:8100/ws?session_id=${sessionId}&client_id=${clientId}`;
     console.log(`Connecting to WebSocket: ${wsUrl} with client ID: ${clientId}`);
 
     try {
