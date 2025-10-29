@@ -2,8 +2,8 @@ package service
 
 import (
 	"context"
+	"crypto/rand"
 	"fmt"
-	"math/rand"
 
 	"io"
 	"log"
@@ -43,8 +43,19 @@ func (s *ShellSyncService) CreateSession(ctx context.Context, req *pb.CreateRequ
 
 	sessionID := uuid.New().String()[:8]
 	
-	// Generate a 6-digit password
-	password := fmt.Sprintf("%06d", rand.Intn(1000000))
+	// Generate a secure 6-digit password using crypto/rand
+	var passwordNum int32
+	b := make([]byte, 4)
+	if _, err := rand.Read(b); err != nil {
+		log.Printf("Failed to generate secure password: %v", err)
+		return nil, fmt.Errorf("failed to generate session password: %w", err)
+	}
+	// Convert bytes to uint32 and mod by 1000000 to get 6 digits
+	passwordNum = int32(uint32(b[0])<<24 | uint32(b[1])<<16 | uint32(b[2])<<8 | uint32(b[3]))
+	if passwordNum < 0 {
+		passwordNum = -passwordNum
+	}
+	password := fmt.Sprintf("%06d", passwordNum%1000000)
 	
 	session := &types.Session{
 		ID:             sessionID,
@@ -110,8 +121,12 @@ func (s *ShellSyncService) Stream(stream pb.ShellSync_StreamServer) error {
 
 				session.Mu.Lock()
 				if terminal, exists := session.Terminals[terminalID]; exists {
-					if len(terminal.Data) >= 3000 {
-						terminal.Data = terminal.Data[len(terminal.Data)-2999:]
+					// Keep only the last 1000 messages to prevent unbounded memory growth
+					// This is more efficient than the previous 3000/2999 approach
+					if len(terminal.Data) >= 1000 {
+						// Use copy to shift elements instead of reslicing to avoid keeping old data
+						copy(terminal.Data, terminal.Data[len(terminal.Data)-999:])
+						terminal.Data = terminal.Data[:999]
 					}
 					terminal.Data = append(terminal.Data, message)
 				}
@@ -247,7 +262,7 @@ func (s *ShellSyncService) RequestNewTerminal(sessionID, frontendID string, x fl
 		return
 	}
 
-	backendTerminalID := fmt.Sprintf("term-%x", rand.Intn(0xffffff))
+	backendTerminalID := "term-" + uuid.New().String()[:8]
 	session.Mu.Lock()
 	if session.Terminals == nil {
 		session.Terminals = make(map[string]*types.Terminal)
@@ -261,7 +276,7 @@ func (s *ShellSyncService) RequestNewTerminal(sessionID, frontendID string, x fl
 		Y:          float32(y),
 		Width:      640, // Default width
 		Height:     400, // Default height
-		Data:       make([]types.Message, 0, 2000),
+		Data:       make([]types.Message, 0), // Start with minimal capacity, will grow as needed
 	}
 	session.Mu.Unlock()
 

@@ -140,3 +140,7 @@ tmp
 .env.temp
 
 .pem
+
+# Build artifacts
+/server
+/bin/

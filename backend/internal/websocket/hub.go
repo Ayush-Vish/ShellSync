@@ -1,10 +1,10 @@
 package websocket
 
 import (
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"log"
-	"math/rand"
 	"net/http"
 	"sync"
 	"time"
@@ -48,9 +48,15 @@ func (h *Hub) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Generate client_id if not provided
+	// Generate client_id if not provided using crypto/rand for better randomness
 	if clientID == "" {
-		clientID = "client-" + fmt.Sprintf("%x", rand.Intn(0xffffff))
+		b := make([]byte, 3)
+		if _, err := rand.Read(b); err != nil {
+			log.Printf("Failed to generate client ID, using fallback: %v", err)
+			clientID = fmt.Sprintf("client-%d", time.Now().UnixNano()%0xffffff)
+		} else {
+			clientID = fmt.Sprintf("client-%x", b)
+		}
 		log.Printf("Generated client ID: %s for session %s", clientID, sessionID)
 	}
 
@@ -594,22 +600,32 @@ func (h *Hub) sendTerminalHistory(sessionID, clientID, terminalID string) {
 		return
 	}
 
-	// Create a copy of the data slice to avoid holding the lock while writing.
-	history := make([]types.Message, len(terminal.Data))
-	copy(history, terminal.Data)
+	// Only copy the slice header/metadata, not the actual message data
+	// This is safe because Message structs are sent by value
+	historyLen := len(terminal.Data)
 	session.Mu.RUnlock()
 
-	// Send the historical messages to the subscribing client.
-	for _, msg := range history {
+	// Send the historical messages to the subscribing client without copying the entire slice
+	session.Mu.RLock()
+	for i := 0; i < historyLen && i < len(terminal.Data); i++ {
+		msg := terminal.Data[i]
+		session.Mu.RUnlock()
+		
 		client.mu.Lock()
 		if !client.closed {
 			select {
 			case client.writeChan <- msg:
 			default:
 				log.Printf("Write channel full for client %s while sending history.", clientID)
+				client.mu.Unlock()
+				return
 			}
 		}
 		client.mu.Unlock()
+		
+		session.Mu.RLock()
 	}
-	log.Printf("Sent %d historical messages for terminal %s to client %s", len(history), terminalID, clientID)
+	session.Mu.RUnlock()
+	
+	log.Printf("Sent %d historical messages for terminal %s to client %s", historyLen, terminalID, clientID)
 }

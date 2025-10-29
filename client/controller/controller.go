@@ -135,7 +135,7 @@ func (a *Agent) spawnNewPty(ctx context.Context, stream pb.ShellSync_StreamClien
 			log.Printf("Agent: Cleaned up PTY for terminal %s (backend ID %s)", localID, backendID)
 		}()
 
-		buffer := make([]byte, 1024*1024)
+		buffer := make([]byte, 4096) // Reduced from 1MB to 4KB for better memory efficiency
 		for {
 			n, err := ptmx.Read(buffer)
 			if n > 0 {
