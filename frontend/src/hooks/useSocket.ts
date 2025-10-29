@@ -17,9 +17,12 @@ export function useTerminalSocket(
 ) {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const pingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [connectionAttempts, setConnectionAttempts] = useState(0);
   const [terminals, setTerminals] = useState<Map<string, TerminalInfo>>(new Map());
+  const [latency, setLatency] = useState<number>(0);
+  const lastPingTimeRef = useRef<number>(0);
 
 
   const connect = useCallback(() => {
@@ -44,6 +47,21 @@ export function useTerminalSocket(
           clearTimeout(reconnectTimeoutRef.current);
           reconnectTimeoutRef.current = null;
         }
+
+        // Start periodic ping for latency measurement
+        if (pingIntervalRef.current) {
+          clearInterval(pingIntervalRef.current);
+        }
+        pingIntervalRef.current = setInterval(() => {
+          if (ws.readyState === WebSocket.OPEN) {
+            lastPingTimeRef.current = Date.now();
+            ws.send(JSON.stringify({
+              type: 'ping',
+              timestamp: Date.now(),
+              sender: clientId,
+            }));
+          }
+        }, 5000); // Ping every 5 seconds
       };
 
       ws.onmessage = (event) => {
@@ -54,7 +72,19 @@ export function useTerminalSocket(
           const data: SocketMessage = normalizeMessage(rawData);
           console.log('Normalized WebSocket message:', data);
       
-          if (data.type === 'session_state' && data.terminals) {
+          if (data.type === 'pong') {
+            // Calculate latency
+            const rtt = Date.now() - lastPingTimeRef.current;
+            setLatency(rtt);
+            console.log(`Latency: ${rtt}ms`);
+            
+            // Send latency update to server
+            ws.send(JSON.stringify({
+              type: 'latency_update',
+              latency: rtt,
+              sender: clientId,
+            }));
+          } else if (data.type === 'session_state' && data.terminals) {
             // Handle session state
             onMessage(data);
           } else if (data.type === 'terminal_created' && data.terminalId) {
@@ -140,6 +170,10 @@ export function useTerminalSocket(
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
         reconnectTimeoutRef.current = null;
+      }
+      if (pingIntervalRef.current) {
+        clearInterval(pingIntervalRef.current);
+        pingIntervalRef.current = null;
       }
       if (wsRef.current) {
         console.log('Closing WebSocket connection on component unmount.');
@@ -233,5 +267,6 @@ export function useTerminalSocket(
     isConnected,
     connectionAttempts,
     terminals: Array.from(terminals.values()),
+    latency, // Expose latency in milliseconds
   };
 }

@@ -32,6 +32,13 @@ type Message struct {
 	Permission string         `json:"permission,omitempty"` // For permission updates
 	ClientID   string         `json:"clientId,omitempty"`   // For client-specific messages
 	Clients    []ClientInfo   `json:"clients,omitempty"`    // For client list
+	// Cursor tracking fields
+	CursorRow int    `json:"cursorRow,omitempty"` // Terminal cursor row position
+	CursorCol int    `json:"cursorCol,omitempty"` // Terminal cursor column position
+	ClientName string `json:"clientName,omitempty"` // Name of client for cursor display
+	// Latency tracking
+	Timestamp int64 `json:"timestamp,omitempty"` // Unix timestamp in milliseconds for RTT calculation
+	Latency   int64 `json:"latency,omitempty"`   // Round-trip time in milliseconds
 }
 
 type ClientInfo struct {
@@ -120,4 +127,13 @@ type Client struct {
 	Name       string
 	Permission string    // "host", "read-write", "read-only"
 	LastSeen   time.Time
+	// Cursor tracking per terminal
+	CursorPositions map[string]*CursorPosition // terminalID -> cursor position
+	Latency         int64                      // Most recent latency in milliseconds
+}
+
+type CursorPosition struct {
+	Row       int
+	Col       int
+	UpdatedAt time.Time
 }

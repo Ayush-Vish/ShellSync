@@ -341,9 +341,11 @@ func (s *ShellSyncService) AddClientToSession(sessionID, clientID string) bool {
 	defer session.Mu.Unlock()
 	if _, ok := session.Clients[clientID]; !ok {
 		session.Clients[clientID] = &types.Client{
-			ID:         clientID,
-			LastSeen:   time.Now(),
-			Permission: "read-only", // Default permission, will be updated after auth
+			ID:              clientID,
+			LastSeen:        time.Now(),
+			Permission:      "read-only", // Default permission, will be updated after auth
+			CursorPositions: make(map[string]*types.CursorPosition),
+			Latency:         0,
 		}
 	}
 	return true

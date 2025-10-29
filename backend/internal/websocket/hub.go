@@ -475,6 +475,79 @@ func (h *Hub) readLoop(conn *websocket.Conn, sessionID, clientID string) {
 			log.Printf("Processing remove terminal request for terminal %s from client %s", msg.TerminalID, clientID)
 			h.service.RequestDeleteTerminal(sessionID, msg.TerminalID)
 
+		case "cursor_position":
+			// Handle cursor position updates
+			if msg.TerminalID == "" {
+				log.Printf("Received cursor_position from client %s without terminalId", clientID)
+				continue
+			}
+
+			session, exists := h.service.GetSession(sessionID)
+			if !exists {
+				continue
+			}
+
+			// Update cursor position for this client
+			session.Mu.Lock()
+			if client, ok := session.Clients[clientID]; ok {
+				if client.CursorPositions == nil {
+					client.CursorPositions = make(map[string]*types.CursorPosition)
+				}
+				client.CursorPositions[msg.TerminalID] = &types.CursorPosition{
+					Row:       msg.CursorRow,
+					Col:       msg.CursorCol,
+					UpdatedAt: time.Now(),
+				}
+				client.LastSeen = time.Now()
+			}
+			session.Mu.Unlock()
+
+			// Broadcast cursor position to other clients
+			cursorMsg := types.Message{
+				Type:       "cursor_update",
+				TerminalID: msg.TerminalID,
+				ClientID:   clientID,
+				ClientName: msg.ClientName,
+				CursorRow:  msg.CursorRow,
+				CursorCol:  msg.CursorCol,
+				Sender:     clientID,
+			}
+			h.BroadcastToSession(sessionID, cursorMsg)
+
+		case "ping":
+			// Handle ping for latency measurement
+			pongMsg := types.Message{
+				Type:      "pong",
+				Timestamp: msg.Timestamp,
+				ClientID:  clientID,
+			}
+			
+			if c, ok := h.clients[clientID]; ok {
+				c.mu.Lock()
+				if !c.closed {
+					select {
+					case c.writeChan <- pongMsg:
+					default:
+						log.Printf("Write channel for client %s is full", clientID)
+					}
+				}
+				c.mu.Unlock()
+			}
+
+		case "latency_update":
+			// Update client latency
+			session, exists := h.service.GetSession(sessionID)
+			if !exists {
+				continue
+			}
+
+			session.Mu.Lock()
+			if client, ok := session.Clients[clientID]; ok {
+				client.Latency = msg.Latency
+				client.LastSeen = time.Now()
+			}
+			session.Mu.Unlock()
+
 		case "subscribe":
 			h.sendTerminalHistory(sessionID, clientID, msg.TerminalID)
 

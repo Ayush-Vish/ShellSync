@@ -28,6 +28,13 @@ export interface SocketMessage {
   permission?: string;
   clientId?: string;
   clients?: Array<{clientId: string; name?: string; permission: string}>;
+  // Cursor tracking
+  cursorRow?: number;
+  cursorCol?: number;
+  clientName?: string;
+  // Latency tracking
+  timestamp?: number;
+  latency?: number;
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function normalizeMessage(data: any): SocketMessage {
@@ -44,6 +51,11 @@ export function normalizeMessage(data: any): SocketMessage {
         permission: data.permission,
         clientId: data.clientId || data.client_id,
         clients: data.clients,
+        cursorRow: data.cursorRow || data.cursor_row,
+        cursorCol: data.cursorCol || data.cursor_col,
+        clientName: data.clientName || data.client_name,
+        timestamp: data.timestamp,
+        latency: data.latency,
     };
 }
 export interface DraggableTerminalRef {
