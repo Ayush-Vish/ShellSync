@@ -96,44 +96,40 @@ func (h *Hub) registerClient(conn *websocket.Conn, session *types.Session, clien
 	h.service.AddClientToSession(session.ID, clientID)
 	log.Printf("Client %s registered to session %s", clientID, session.ID)
 
-	// Goroutine to send the initial session state to the newly connected client.
-	go func() {
-		time.Sleep(100 * time.Millisecond) // Small delay for stability.
-
-		session.Mu.RLock()
-		terminals := make([]types.TerminalInfo, 0, len(session.Terminals))
-		for _, term := range session.Terminals {
-			terminals = append(terminals, types.TerminalInfo{
-				TerminalID: term.ID,
-				FrontendID: term.FrontendID,
-				Status:     term.Status,
-				X:          term.X,
-				Y:          term.Y,
-				Width:      term.Width,
-				Height:     term.Height,
-			})
-		}
-		session.Mu.RUnlock()
-
-		sessionStateMsg := types.Message{
-			Type:      "session_state",
-			Terminals: terminals,
-		}
-
-		c.mu.Lock()
-		if !c.closed {
-			select {
-			case c.writeChan <- sessionStateMsg:
-				log.Printf("Sent session state to client %s for session %s", clientID, session.ID)
-			default:
-				log.Printf("Write channel for client %s is full, session state dropped", clientID)
-			}
-		}
-		c.mu.Unlock()
-	}()
-
-	// Start the write loop in a separate goroutine to send messages to the client.
+	// Start the write loop first to ensure it's ready to receive messages
 	go h.writeLoop(c, clientID)
+
+	// Send the initial session state to the newly connected client
+	session.Mu.RLock()
+	terminals := make([]types.TerminalInfo, 0, len(session.Terminals))
+	for _, term := range session.Terminals {
+		terminals = append(terminals, types.TerminalInfo{
+			TerminalID: term.ID,
+			FrontendID: term.FrontendID,
+			Status:     term.Status,
+			X:          term.X,
+			Y:          term.Y,
+			Width:      term.Width,
+			Height:     term.Height,
+		})
+	}
+	session.Mu.RUnlock()
+
+	sessionStateMsg := types.Message{
+		Type:      "session_state",
+		Terminals: terminals,
+	}
+
+	c.mu.Lock()
+	if !c.closed {
+		select {
+		case c.writeChan <- sessionStateMsg:
+			log.Printf("Sent session state to client %s for session %s", clientID, session.ID)
+		default:
+			log.Printf("Write channel for client %s is full, session state dropped", clientID)
+		}
+	}
+	c.mu.Unlock()
 }
 
 func (h *Hub) unregisterClient(clientID, sessionID string) {
@@ -560,16 +556,28 @@ func getString(m map[string]interface{}, key string) string {
 }
 
 func (h *Hub) BroadcastToSession(sessionID string, message types.Message) {
+	// First, collect client IDs while holding the lock briefly
 	h.mu.RLock()
-	defer h.mu.RUnlock()
-
 	sessionClients, ok := h.sessions[sessionID]
 	if !ok {
+		h.mu.RUnlock()
 		return
 	}
-
+	
+	// Copy client IDs to avoid holding lock during broadcast
+	clientIDs := make([]string, 0, len(sessionClients))
 	for clientID := range sessionClients {
-		if client, ok := h.clients[clientID]; ok {
+		clientIDs = append(clientIDs, clientID)
+	}
+	h.mu.RUnlock()
+
+	// Now broadcast without holding the hub lock
+	for _, clientID := range clientIDs {
+		h.mu.RLock()
+		client, ok := h.clients[clientID]
+		h.mu.RUnlock()
+		
+		if ok {
 			client.mu.Lock()
 			if !client.closed {
 				select {
