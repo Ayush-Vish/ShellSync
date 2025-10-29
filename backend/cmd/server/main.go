@@ -71,8 +71,11 @@ func main() {
 	const serverAddr = "[::]:8100"
 
 	server := &http.Server{
-		Addr:    serverAddr,
-		Handler: h2cHandler,
+		Addr:         serverAddr,
+		Handler:      h2cHandler,
+		ReadTimeout:  30 * time.Second,  // Prevent slowloris attacks
+		WriteTimeout: 30 * time.Second,  // Prevent hanging writes
+		IdleTimeout:  120 * time.Second, // Close idle connections
 	}
 
 	go func() {
