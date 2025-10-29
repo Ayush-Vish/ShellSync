@@ -218,6 +218,14 @@ func (s *ShellSyncService) Stream(stream pb.ShellSync_StreamServer) error {
 						},
 					},
 				}
+			case types.DeleteTerminalCmd:
+				serverUpdate = &pb.ServerUpdate{
+					Payload: &pb.ServerUpdate_CloseTerminalRequest{
+						CloseTerminalRequest: &pb.CloseTerminalRequest{
+							TerminalId: cmd.TerminalID,
+						},
+					},
+				}
 			}
 
 			if err := stream.Send(serverUpdate); err != nil {
@@ -340,6 +348,48 @@ func (s *ShellSyncService) AddClientToSession(sessionID, clientID string) bool {
 	}
 	return true
 }
+
+func (s *ShellSyncService) RequestDeleteTerminal(sessionID, terminalID string) {
+	s.mu.RLock()
+	session, ok := s.sessions[sessionID]
+	s.mu.RUnlock()
+
+	if !ok {
+		log.Printf("Service error: cannot delete terminal for non-existent session %s", sessionID)
+		return
+	}
+
+	// Remove terminal from session memory
+	session.Mu.Lock()
+	if _, exists := session.Terminals[terminalID]; exists {
+		delete(session.Terminals, terminalID)
+		log.Printf("Removed terminal %s from session %s memory", terminalID, sessionID)
+	}
+	session.Mu.Unlock()
+
+	// Send delete request to agent to close the PTY
+	log.Printf("Requesting agent to close terminal %s for session %s", terminalID, sessionID)
+
+	select {
+	case session.AgentInputChan <- types.DeleteTerminalCmd{
+		TerminalID: terminalID,
+	}:
+		log.Printf("Sent close terminal request to agent for terminal %s", terminalID)
+	default:
+		log.Printf("Agent input channel for session %s is full. Terminal close request dropped.", sessionID)
+	}
+
+	// Broadcast terminal deletion to all clients
+	if s.hub != nil {
+		deleteMsg := types.Message{
+			Type:       "terminal_deleted",
+			TerminalID: terminalID,
+			Sender:     "server",
+		}
+		s.hub.BroadcastToSession(sessionID, deleteMsg)
+	}
+}
+
 func (s *ShellSyncService) GetSessions() []*types.Session {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

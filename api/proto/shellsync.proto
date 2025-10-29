@@ -55,6 +55,7 @@ message ServerUpdate {
     TerminalInput pty_input = 2;
     CreateTerminalRequest create_terminal_request = 3;
     TerminalResize resize_terminal = 4;  // NEW: Add resize support
+    CloseTerminalRequest close_terminal_request = 5;  // NEW: Add close terminal support
   }
 }
 
@@ -74,4 +75,9 @@ message TerminalResize {
   uint32 rows = 3;  // Number of rows
   uint32 width = 4; // Pixel width (optional)
   uint32 height = 5; // Pixel height (optional)
+}
+
+// NEW: Add close terminal message
+message CloseTerminalRequest {
+  string terminal_id = 1;
 }

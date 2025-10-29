@@ -81,6 +81,35 @@ func (a *Agent) resizePty(terminalID string, cols uint32, rows uint32) error {
 	return nil
 }
 
+func (a *Agent) closeTerminal(terminalID string) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	localID, found := a.terminalMap[terminalID]
+	if !found {
+		return fmt.Errorf("terminal %s not found in terminal map", terminalID)
+	}
+
+	ptmx, ok := a.ptys[localID]
+	if !ok {
+		return fmt.Errorf("terminal %s (local ID: %s) not found in ptys map", terminalID, localID)
+	}
+
+	log.Printf("Agent: Closing terminal %s (local ID: %s)", terminalID, localID)
+
+	// Close the PTY file, which will also terminate the shell process
+	if err := ptmx.Close(); err != nil {
+		log.Printf("Agent: Error closing PTY for terminal %s: %v", terminalID, err)
+	}
+
+	// Remove from maps
+	delete(a.ptys, localID)
+	delete(a.terminalMap, terminalID)
+
+	log.Printf("Agent: Successfully closed and removed terminal %s", terminalID)
+	return nil
+}
+
 func (a *Agent) spawnNewPty(ctx context.Context, stream pb.ShellSync_StreamClient, backendID string) error {
 	localID := "term-" + uuid.New().String()[:8]
 
@@ -253,6 +282,29 @@ func startStream(client pb.ShellSyncClient, sessionID string) error {
 				if sendErr := stream.Send(errorMsg); sendErr != nil {
 					log.Printf("Agent: Failed to send resize error: %v", sendErr)
 				}
+			}
+
+		case *pb.ServerUpdate_CloseTerminalRequest:
+			closeReq := payload.CloseTerminalRequest
+			terminalID := closeReq.GetTerminalId()
+			log.Printf("Agent: Received close request for terminal %s", terminalID)
+
+			if err := agent.closeTerminal(terminalID); err != nil {
+				log.Printf("Agent: Failed to close terminal %s: %v", terminalID, err)
+
+				errorMsg := &pb.ClientUpdate{
+					Payload: &pb.ClientUpdate_TerminalError{
+						TerminalError: &pb.TerminalError{
+							TerminalId: terminalID,
+							Error:      fmt.Sprintf("Close failed: %v", err),
+						},
+					},
+				}
+				if sendErr := stream.Send(errorMsg); sendErr != nil {
+					log.Printf("Agent: Failed to send close error: %v", sendErr)
+				}
+			} else {
+				log.Printf("Agent: Successfully closed terminal %s", terminalID)
 			}
 
 		case *pb.ServerUpdate_ServerHello:

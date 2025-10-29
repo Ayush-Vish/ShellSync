@@ -8,6 +8,7 @@ import (
 type PTYService interface {
 	ForwardInputToAgent(sessionID, terminalID string, input []byte)
 	RequestNewTerminal(sessionID, frontendID string, x float32, y float32)
+	RequestDeleteTerminal(sessionID, terminalID string)
 	GetSession(sessionID string) (*Session, bool)
 	GetSessions() []*Session
 	AddClientToSession(sessionID, clientID string) bool
@@ -107,6 +108,12 @@ type CreateTerminalCmd struct {
 }
 
 func (CreateTerminalCmd) isAgentCommand() {}
+
+type DeleteTerminalCmd struct {
+	TerminalID string
+}
+
+func (DeleteTerminalCmd) isAgentCommand() {}
 
 type Client struct {
 	ID         string

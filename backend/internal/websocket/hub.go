@@ -460,6 +460,21 @@ func (h *Hub) readLoop(conn *websocket.Conn, sessionID, clientID string) {
 			}
 			session.Mu.Unlock()
 
+		case "remove_terminal":
+			// Check write permission
+			if !h.hasWritePermission(sessionID, clientID) {
+				log.Printf("Client %s attempted remove_terminal without write permission", clientID)
+				continue
+			}
+			
+			if msg.TerminalID == "" {
+				log.Printf("Received remove_terminal from client %s without a terminalId", clientID)
+				continue
+			}
+
+			log.Printf("Processing remove terminal request for terminal %s from client %s", msg.TerminalID, clientID)
+			h.service.RequestDeleteTerminal(sessionID, msg.TerminalID)
+
 		case "subscribe":
 			h.sendTerminalHistory(sessionID, clientID, msg.TerminalID)
 
