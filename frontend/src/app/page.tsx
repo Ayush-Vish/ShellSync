@@ -9,7 +9,7 @@ import { HeroSection } from "@/components/landing-page/hero-section"
 import { HowItWorksSection } from "@/components/landing-page/how-it-works-section"
 import { OpenSourceSection } from "@/components/landing-page/open-source-section"
 import { useState, useEffect } from "react"
-
+import { ReleaseNotes } from "@/components/landing-page/release-notes"
 
 export default function Home() {
   const [typedText, setTypedText] = useState("")
@@ -35,6 +35,8 @@ export default function Home() {
       <Header />
       <HeroSection typedText={typedText} />
       <FeaturesSection />
+      <ReleaseNotes />
+
       <GetStartedSection />
       <HowItWorksSection />
       <OpenSourceSection />
