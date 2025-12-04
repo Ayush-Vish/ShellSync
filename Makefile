@@ -39,3 +39,8 @@ build-client:
 	
 	@echo "Builds completed. Binaries are in the bin/ directory."
 
+run-server-race:
+	go run -race ./backend/cmd/server
+
+run-client-race:
+	go run -race ./client/main.go

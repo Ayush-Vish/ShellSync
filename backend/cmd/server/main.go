@@ -30,12 +30,12 @@ func main() {
 	grpcServer := grpc.NewServer()
 	pb.RegisterShellSyncServer(grpcServer, shellService)
 
-	// gRPC-Web wrapper 
+	// gRPC-Web wrapper
 	grpcWebServer := grpcweb.WrapServer(grpcServer,
 		grpcweb.WithOriginFunc(func(origin string) bool { return true }),
 	)
 
-	// httpRouter 
+	// httpRouter
 	httpRouter := mux.NewRouter()
 
 	// Health check
@@ -59,7 +59,7 @@ func main() {
 	mainHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
 		// Check for gRPC-Web requests (HTTP/1.1)
-		if  grpcWebServer.IsGrpcWebRequest(r) {
+		if grpcWebServer.IsGrpcWebRequest(r) {
 			grpcWebServer.ServeHTTP(w, r)
 			return
 		}

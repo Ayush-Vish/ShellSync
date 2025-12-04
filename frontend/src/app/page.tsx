@@ -35,12 +35,12 @@ export default function Home() {
       <Header />
       <HeroSection typedText={typedText} />
       <FeaturesSection />
-      <ReleaseNotes />
 
       <GetStartedSection />
       <HowItWorksSection />
       <OpenSourceSection />
       <FAQSection />
+      <ReleaseNotes />
       <Footer />
     </div>
   )
