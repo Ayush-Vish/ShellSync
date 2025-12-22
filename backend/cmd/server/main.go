@@ -23,6 +23,13 @@ import (
 )
 
 func main() {
+	// url := os.Getenv("REDIS_URL")
+	// client, err := utils.ConnectRedis(url)
+	// if err != nil {
+	// 	log.Fatalf("Failed to connect to Redis: %v", err)
+	// 	return
+	// }
+
 	shellService := service.NewShellSyncService()
 	wsHub := websocket.NewHub(shellService)
 	shellService.SetHub(wsHub)

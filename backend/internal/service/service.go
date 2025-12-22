@@ -8,10 +8,10 @@ import (
 	"io"
 	"log"
 
-	"sync"
 	"time"
 
 	pb "github.com/Ayush-Vish/shellsync/api/proto"
+	"github.com/Ayush-Vish/shellsync/backend/internal/state"
 	"github.com/Ayush-Vish/shellsync/backend/internal/types"
 	"github.com/google/uuid"
 )
@@ -23,14 +23,13 @@ type websocketMessage = types.Message
 
 type ShellSyncService struct {
 	pb.UnimplementedShellSyncServer
-	sessions map[string]*types.Session
-	mu       sync.RWMutex
-	hub      types.PtyOutputBroadcaster
+	store *state.Store
+	hub   types.PtyOutputBroadcaster
 }
 
 func NewShellSyncService() *ShellSyncService {
 	return &ShellSyncService{
-		sessions: make(map[string]*types.Session),
+		store: state.NewStore(),
 	}
 }
 
@@ -38,28 +37,25 @@ func (s *ShellSyncService) SetHub(hub types.PtyOutputBroadcaster) {
 	s.hub = hub
 }
 func (s *ShellSyncService) CreateSession(ctx context.Context, req *pb.CreateRequest) (*pb.CreateResponse, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
 
 	sessionID := uuid.New().String()[:8]
-	
-	// Generate a 6-digit password
+
 	password := fmt.Sprintf("%06d", rand.Intn(1000000))
-	
+
 	session := &types.Session{
 		ID:             sessionID,
 		Host:           req.Host,
 		Password:       password,
-		AgentHostname:  req.Host, // Store agent hostname for host identification
+		AgentHostname:  req.Host,
 		Clients:        make(map[string]*types.Client),
 		Terminals:      make(map[string]*types.Terminal),
 		CreatedAt:      time.Now(),
 		AgentInputChan: make(chan types.AgentCommand, 20),
 	}
-	s.sessions[sessionID] = session
+	s.store.Set(sessionID, session)
 
 	log.Printf("Created session: %s for host: %s with password: %s", sessionID, req.Host, password)
-	
+
 	return &pb.CreateResponse{
 		SessionId:   sessionID,
 		FrontendUrl: fmt.Sprintf("http://localhost:3000/ws/%s", sessionID),
@@ -76,15 +72,12 @@ func (s *ShellSyncService) Stream(stream pb.ShellSync_StreamServer) error {
 		return err
 	}
 	sessionID := initialMsg.GetInitialMessage().GetSessionId()
-
-	s.mu.RLock()
-	session, exists := s.sessions[sessionID]
-	s.mu.RUnlock()
-	if !exists {
+	session, err := s.store.Get(sessionID)
+	if err != nil {
 		return fmt.Errorf("session %s not found for connecting agent", sessionID)
 	}
 
-	// Goroutine: Read messages from Agent and dispatch them.
+	// Goroutine: Read messages from Agent and dispatch .
 	go func() {
 		for {
 			msgFromAgent, err := stream.Recv()
@@ -166,7 +159,7 @@ func (s *ShellSyncService) Stream(stream pb.ShellSync_StreamServer) error {
 			}
 		}
 	}()
-
+	// Goroutine: Send messages to Agent
 	for {
 		select {
 		case <-ctx.Done():
@@ -214,13 +207,12 @@ func (s *ShellSyncService) Stream(stream pb.ShellSync_StreamServer) error {
 }
 
 func (s *ShellSyncService) ForwardInputToAgent(sessionID, terminalID string, input []byte) {
-	s.mu.RLock()
-	session, exists := s.sessions[sessionID]
-	s.mu.RUnlock()
-
-	if !exists {
+	session, err := s.store.Get(sessionID)
+	if err != nil {
+		log.Printf("Service error: cannot forward input to agent for non-existent session %s: %v", sessionID, err)
 		return
 	}
+
 	select {
 	case session.AgentInputChan <- types.PtyInputData{TerminalID: terminalID, Data: input}:
 	default:
@@ -229,12 +221,11 @@ func (s *ShellSyncService) ForwardInputToAgent(sessionID, terminalID string, inp
 }
 
 func (s *ShellSyncService) RequestNewTerminal(sessionID, frontendID string, x float32, y float32) {
-	s.mu.RLock()
-	session, ok := s.sessions[sessionID]
-	s.mu.RUnlock()
-
-	if !ok {
+	session, err := s.store.Get(sessionID)
+	if err != nil {
 		log.Printf("Service error: cannot create terminal for non-existent session %s", sessionID)
+		// Sending a Error Message to the Frontend.
+
 		if s.hub != nil {
 			errorMsg := types.Message{
 				Type:       "terminal_error",
@@ -302,16 +293,15 @@ func (s *ShellSyncService) RequestNewTerminal(sessionID, frontendID string, x fl
 }
 
 func (s *ShellSyncService) GetSession(sessionID string) (*types.Session, bool) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	session, exists := s.sessions[sessionID]
-	return session, exists
+	session, err := s.store.Get(sessionID)
+	if err != nil {
+		return nil, false
+	}
+	return session, true
 }
 func (s *ShellSyncService) AddClientToSession(sessionID, clientID string) bool {
-	s.mu.RLock()
-	session, exists := s.sessions[sessionID]
-	s.mu.RUnlock()
-	if !exists {
+	session, err := s.store.Get(sessionID)
+	if err != nil {
 		return false
 	}
 	session.Mu.Lock()
@@ -326,11 +316,10 @@ func (s *ShellSyncService) AddClientToSession(sessionID, clientID string) bool {
 	return true
 }
 func (s *ShellSyncService) GetSessions() []*types.Session {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	var sessions []*types.Session
-	for _, s := range s.sessions {
-		sessions = append(sessions, s)
+	sessions := s.store.All()
+	var sessionList []*types.Session
+	for _, s := range sessions {
+		sessionList = append(sessionList, s)
 	}
-	return sessions
+	return sessionList
 }

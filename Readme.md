@@ -4,6 +4,17 @@
 
 **ShellSync** transforms your terminal into an interactive, real-time collaborative canvas. Instantly share your terminal session with anyone, anywhere, right in their browser. Perfect for pair programming, debugging sessions, live demos, and educational purposes.
 
+```
+             _____  _            _  _  _____
+            /  ___|| |          | || |/  ___|
+            \ `--. | |__    ___ | || |\ `--.  _   _  _ __    ___
+             `--. \| '_ \  / _ \| || | `--. \| | | || '_ \  / __|
+            /\__/ /| | | ||  __/| || |/\__/ /| |_| || | | || (__
+            \____/ |_| |_| \___||_||_|\____/  \__, ||_| |_| \___|
+                                               __/ |               
+                                              |___/               
+```
+-----
 ## ✨ Key Features
 
   * **Real-Time Collaboration**: Share your terminal session live with multiple users. Keystrokes and output are synced instantly for everyone.
