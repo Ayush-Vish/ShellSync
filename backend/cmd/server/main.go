@@ -13,6 +13,7 @@ import (
 
 	pb "github.com/Ayush-Vish/shellsync/api/proto"
 	"github.com/Ayush-Vish/shellsync/backend/internal/service"
+	"github.com/Ayush-Vish/shellsync/backend/internal/state"
 	"github.com/Ayush-Vish/shellsync/backend/internal/websocket"
 	"github.com/gorilla/mux"
 	"github.com/improbable-eng/grpc-web/go/grpcweb"
@@ -29,8 +30,10 @@ func main() {
 	// 	log.Fatalf("Failed to connect to Redis: %v", err)
 	// 	return
 	// }
+	store := state.NewStore()
+	
 
-	shellService := service.NewShellSyncService()
+	shellService := service.NewShellSyncService(store)
 	wsHub := websocket.NewHub(shellService)
 	shellService.SetHub(wsHub)
 

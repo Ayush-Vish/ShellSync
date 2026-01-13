@@ -16,7 +16,7 @@ import (
 	"github.com/google/uuid"
 )
 
-type PtyOutputBroadcaster interface {
+type ptyOutputBroadcaster interface {
 	BroadcastToSession(sessionID string, message types.Message)
 }
 type websocketMessage = types.Message
@@ -27,9 +27,9 @@ type ShellSyncService struct {
 	hub   types.PtyOutputBroadcaster
 }
 
-func NewShellSyncService() *ShellSyncService {
+func NewShellSyncService(store *state.Store) *ShellSyncService {
 	return &ShellSyncService{
-		store: state.NewStore(),
+		store: store,
 	}
 }
 

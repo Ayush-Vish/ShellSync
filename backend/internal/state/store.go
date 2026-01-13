@@ -3,10 +3,22 @@ package state
 import (
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/Ayush-Vish/shellsync/backend/internal/types"
 )
 
+type SessionSnapshot struct {
+	ID            string
+	Host          string
+	Password      string
+	AgentHostname string
+	HostClientID  string
+	CreatedAt     time.Time
+
+	Clients   map[string]*types.Client
+	Terminals map[string]*types.Terminal
+}
 type Store struct {
 	sessions map[string]*types.Session
 	mu       sync.RWMutex
