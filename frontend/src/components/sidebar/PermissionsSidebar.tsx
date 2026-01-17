@@ -58,6 +58,7 @@ export default function PermissionsSidebar({ isHost, currentClientId, clients, s
         return permission;
     }
   };
+  void getPermissionLabel; // Reserved for future use
 
   if (!isHost) {
     return null; // Only show sidebar for host

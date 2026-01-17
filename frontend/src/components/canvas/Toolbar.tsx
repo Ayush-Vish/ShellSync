@@ -13,7 +13,8 @@ const Toolbar = ({
   isCreating: boolean;
   permission?: 'host' | 'read-write' | 'read-only' | null;
 }) => {
-  const canWrite = permission === 'host' || permission === 'read-write';
+  const _canWrite = permission === 'host' || permission === 'read-write';
+  void _canWrite; // Reserved for future use
 
   return (
     <div className="absolute top-4 left-4 z-10 flex items-center gap-2">

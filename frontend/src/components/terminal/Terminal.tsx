@@ -5,7 +5,7 @@ import { Terminal as XTerminal } from 'xterm';
 import { FitAddon } from 'xterm-addon-fit';
 import 'xterm/css/xterm.css';
 import { ClipboardAddon } from '@xterm/addon-clipboard';
-import { SearchAddon, ISearchOptions } from '@xterm/addon-search';
+import { SearchAddon } from '@xterm/addon-search';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 interface XtermProps {
   onData: (data: string) => void;

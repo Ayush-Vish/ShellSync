@@ -170,7 +170,7 @@ export default function PasswordPrompt({ onSubmit, error, sessionId }: PasswordP
 
         <div className="mt-6 pt-6 border-t border-gray-700">
           <p className="text-xs text-gray-500 text-center">
-            Don't have the password? Contact the session host.
+            Don&apos;t have the password? Contact the session host.
           </p>
           <p className="text-xs text-gray-600 text-center mt-2">
             Your credentials will be saved for 30 days for this session.

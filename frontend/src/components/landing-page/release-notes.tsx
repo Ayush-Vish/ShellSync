@@ -3,8 +3,14 @@
 import { useEffect, useState } from "react";
 import { marked } from "marked";
 
+interface Release {
+  tag_name: string;
+  published_at: string;
+  body?: string;
+}
+
 export function ReleaseNotes() {
-  const [release, setRelease] = useState<any>(null);
+  const [release, setRelease] = useState<Release | null>(null);
 
   useEffect(() => {
     fetch("/api/latest-release")

@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    ports:
+      - "8100:8100"
+    networks:
+      - shellsync-network
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    ports:
+      - "3000:3000"
+    networks:
+      - shellsync-network
+    depends_on:
+      - backend
+    environment:
+      - NEXT_PUBLIC_WS_URL=ws://localhost:8100
+
+  client-agent:
+    build:
+      context: .
+      dockerfile: client/Dockerfile
+      target: runner # Uses the lean alpine image
+    networks:
+      - shellsync-network
+    depends_on:
+      - backend
+    # Fixed flags to match your CLI's help output
+    command: ["--host", "backend", "--port", "8100"]
+
+  harness:
+    build:
+      context: .
+      dockerfile: client/Dockerfile
+      target: harness # Uses the image with Go installed
+    networks:
+      - shellsync-network
+    depends_on:
+      - backend
+    # Environment variables to help the harness find the server
+    environment:
+      - SHELLSYNC_HOST=backend
+      - SHELLSYNC_PORT=8100
+
+networks:
+  shellsync-network:
+    driver: bridge

@@ -158,7 +158,7 @@ export function useAuthenticatedSocket(
       console.error('Failed to create WebSocket connection:', error);
       setIsConnected(false);
     }
-  }, [sessionId, onMessage, onAuthSuccess]);
+  }, [sessionId, onMessage, onAuthSuccess, getOrCreateClientId]);
 
   const sendMessage = useCallback((type: string, content?: string, terminalId?: string) => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {

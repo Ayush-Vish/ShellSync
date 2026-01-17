@@ -22,7 +22,15 @@ export interface SocketMessage {
   y?: number;
   width?: number;
   height?: number;
-  terminals?: any[];
+  terminals?: Array<{
+    terminalId: string;
+    frontendId: string;
+    status: string;
+    x: number;
+    y: number;
+    width?: number;
+    height?: number;
+  }>;
   cols?: number;
   rows?: number;
   permission?: string;
