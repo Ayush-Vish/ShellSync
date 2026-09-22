@@ -50,11 +50,6 @@ export function Header() {
 
   return (
     <>
-      {/* 🔴 Critical Server Down Banner */}
-      <div className="w-full bg-red-100 border-b border-red-300 text-red-800 text-sm font-semibold px-4 py-2 flex items-center justify-center z-[100] fixed top-0">
-        <AlertOctagon className="w-4 h-4 mr-2 text-red-700" />
-        ShellSync servers are currently <span className="font-bold mx-1">down</span> due to funding issues. We&apos;re working to restore service soon. 🙏
-      </div>
 
       {/* Header adjusted to be below banner */}
       <header className="fixed top-10 w-full z-50 bg-neutral-950/80 backdrop-blur-md border-b border-neutral-800 md:hidden">
