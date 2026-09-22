@@ -10,7 +10,6 @@ import {
   Download,
   Code,
   HelpCircle,
-  AlertOctagon,
 } from "lucide-react"
 import Link from "next/link"
 
